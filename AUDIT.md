@@ -29,6 +29,65 @@
 
 ---
 
+## Local performance follow-up, 31 October 2026
+
+This is development-server evidence for the 31 October source candidate, not P6-09 production-like acceptance or a Lighthouse score.
+
+| Check | Before | After | Method |
+|---|---:|---:|---|
+| Eight concurrent requests for one public cover | 3.47 s wall time | 1.58 s wall time | Node fetch against localhost; all eight returned 200. The public single-bucket rate limit now uses one atomic SQLite statement. |
+| Browse initial cover requests | 24 | 7 | Playwright desktop viewport, page 1 before scrolling. Cards approaching the viewport mount their covers. |
+| Search initial cover requests | About 28 | 1 | Playwright desktop viewport, `q=mother`, before scrolling. |
+| Home initial catalogue cover requests | About 16 | 3 | Playwright desktop viewport, before scrolling. |
+| Home scenic background requests | Desktop and phone | Matching viewport only | Playwright desktop and 390 px phone viewports; responsive `picture` sources. |
+
+The optimized local web build passed. Rate-limit and performance regression scripts, TypeScript and lint passed. Browse logged intermittent Next.js development streaming `$RS`/`parentNode` errors while rendering its catalogue. The isolated production follow-up below checks these symptoms and records the remaining limits. P6-09 remains open.
+
+### Isolated local production investigation, 31 October 2026
+
+An isolated Next.js 15.5.28 build (`NEXT_DIST_DIR=.next-investigation`) ran on localhost:3001 while the development server stayed on port 3000. The server used the existing catalogue environment, localhost proxy-preview flags and a temporary process-only rate-limit key. Lighthouse 13.6.0 used its default simulated mobile profile unless noted. Reports are in `output/playwright/lighthouse-*.json`. These are single local runs, not hosted scores; Home mobile was repeated and its simulated LCP remained 28.7–28.8 seconds. Overall scores varied with blocking time.
+
+| Route | Mobile score | Simulated mobile LCP | Mobile TBT | Desktop score | Desktop LCP |
+|---|---:|---:|---:|---:|---:|
+| Home | 60 | 28.7 s | 372 ms | 73 | 4.8 s |
+| Browse | 66 | 27.4 s | 350 ms | 77 | 4.6 s |
+| Search (`q=mother`) | 72 | 1.2 s text LCP | 784 ms | — | — |
+| Issue detail | 64 | 28.1 s | 424 ms | — | — |
+| Admin login | 93 | 1.1 s text LCP | 292 ms | — | — |
+| Reader | 55* | 5.7 s* | 523 ms* | — | — |
+
+*The Reader audit is invalid as a full-document measure: in this local production setup its PDF redirect reaches R2, whose CORS policy does not allow `localhost:3001`. The shell loads, then PDF.js retries and shows a document error. No Reader success or PDF render timing is claimed.*
+
+**Observed causes and controls:**
+
+- The default `apps/web/public/logo.png` is 4,411,949 bytes at 2000×2000 pixels, although the header displays it at about 40×40. It is served unoptimized through the brand-route fallback on every measured page. Blocking only `*logo.png*` in Lighthouse reduced simulated LCP from 28.7 to 7.0 seconds on Home and from 27.4 to 5.6 seconds on Browse. Under actual DevTools throttling, Home LCP changed from 5.5 to 4.6 seconds and total blocking time from 3,240 to 2,402 ms. The effect is real, but the simulated and actual-throttling magnitudes differ. The browser-visible logo was intentionally broken only in this measurement control; no product asset was changed.
+- Search's page load event was about 0.2 seconds, but results appeared at 2.7–2.8 seconds. In a second-query browser run, `/api/search` began about 1.74 seconds after navigation and finished about 0.86 seconds later. Blocking the logo did not reduce result readiness (2.85 seconds). Initial search data is fetched only after client hydration; the client startup plus API request is the separate Search delay.
+- Browse's intermittent `$RS`/`parentNode` console errors were observed in the development server before this isolated build. They did not reproduce in the correctly configured production browser on phone page 1 or desktop page 2, and a later development page-2 run had zero page errors. Treat them as a development-only or intermittent streaming symptom until a fresh hosted check confirms otherwise; no root cause in product code is established.
+- The isolated build's JavaScript budget check passed: Home 217.8 KiB gzip against 220 KiB, Browse 218.3 KiB against 220 KiB, Reader 322.3 KiB against 350 KiB. Home and Browse have little budget headroom. The local production browser's unthrottled load events ranged from about 0.1 to 1.9 seconds, but Search results and Reader PDF were not ready at those events.
+
+Next verification from this baseline: test an uploaded brand logo, rerun issue-detail Lighthouse and real-device checks, verify Reader with a permitted R2 origin or approved local proxy, then repeat on the hosted release. The local default-logo and initial-Search follow-up appears below. P6-09 and P6-07 remain open.
+
+### Targeted local production follow-up, 31 October 2026
+
+- The unchanged default logo now uses Next's image optimizer when the public brand route has no uploaded logo. The tested optimized response was 4,567 bytes instead of 4,411,949 bytes; the browser received an 874-byte variant. The route still serves uploaded logos as before. A HEAD request keeps the original fallback path so metadata checks do not ask the image optimizer to process a bodyless request.
+- With the same simulated mobile Lighthouse setup, Home LCP fell from 28.8 to 7.1 seconds and Browse from 27.4 to 5.8 seconds. Transferred bytes fell from about 5.38 to 1.17 MB on Home and 5.28 to 1.07 MB on Browse. Under actual DevTools mobile throttling, Home LCP fell from 5.5 to 4.4 seconds and total blocking time from 3,240 to 1,864 ms. These are local comparisons, not hosted scores.
+- Search now preloads its initial API request from the server-rendered page while retaining the existing client state and API flow. A browser run showed one `/api/search` request, starting 94–403 ms after navigation rather than about 1,740 ms. Initial visible results changed from about 2,735 ms to 2,220 ms on the first `mother` run, 1,518 ms warm, and 1,068 ms for `yoga` (previously 2,754 ms). Changing the query interactively still fetched successfully. Timing varies by cache and local environment.
+- A proposed Search API query-sharing change showed no convincing gain: five-request median was 512 ms before and 467 ms after, with cold requests about 1.6 seconds both times. It was reverted. The performance regression script passed; the review test script could not run because its existing fixture lacks `site_settings`.
+- For browser-only Reader verification, the authorized PDF response was fulfilled at the same origin in Playwright after the local R2 redirect. The desktop reader rendered a 44-page issue in about 2,930 ms and next-page navigation worked. At a 390 px phone viewport, first canvas appeared in about 3,501 ms at 343 px width, with Fit width already active. This does not prove direct localhost R2 CORS or hosted PDF delivery.
+- The isolated production build, lint, TypeScript and performance regression script passed. The first JavaScript budget check passed at Home 219.9/220 KiB gzip, Browse 218.9/220, Reader 322.7/350. A final build after concurrent workspace changes still compiled, but Home measured 220.2/220 KiB and failed the exact budget gate; Browse measured 219.1/220 and Reader 322.9/350. The Home overage needs a focused bundle reduction before release. Hosted and device-specific acceptance remains open.
+
+### Home bundle, uploaded logos and Reader scroll follow-up, 31 October 2026
+
+- Splitting the small subscriber section with `next/dynamic` increased Home's measured initial bundle from 220.2 to 221.1 KiB gzip; this attempt was reverted. Splitting the 1,200-line bookshelf instead reduced it to 214.3 KiB, below the 220 KiB gate. The production browser still rendered the bookshelf without a page error. Its split chunk downloaded about 926 ms after navigation in one run, so this is a route-bundle reduction, not proof of deferred total JavaScript transfer. Browse and Reader measured 219.0/220 and 322.9/350 KiB.
+- Future admin logo uploads now store a 128 px PNG for the logo slot; existing 512 px uploaded logos are reduced to 128 px by the public route. A synthetic resize of the unchanged default artwork produced a 27,618-byte 128 px PNG from the 4,411,949-byte source. This verifies the resize path's output size, not an actual uploaded R2 logo. The default fallback remains Next-optimized and HEAD/GET returned 200 locally.
+- In an isolated production Chrome run using authorized same-origin test fulfillment, a 6,490,053-byte, 44-page PDF became scrollable in 3.61 seconds before Reader preload; the PDF request began at 1.44 seconds. With server-rendered PDF preload, the browser made one request, beginning at 1.05 seconds on the first run and 0.10 seconds warm; scrolling became available at 2.83 and 2.19 seconds respectively. On phone width, continuous scrolling became available at 2.36 seconds, with the next canvas rendered at 2.49 seconds. These absolute times vary with transport; the consistently earlier request is the useful observation.
+- The tested PDF did not contain a linearization marker in its first kilobyte. The scroll-page queue was not the dominant wait in this run: after the PDF response, first and next canvases appeared within roughly 0.1–0.4 seconds. First-time phone readers now default to continuous scroll while retaining fit width; a production Chrome check showed 44 scroll slots, a 343 px canvas at 390 px viewport width, and one PDF request. A saved single-page preference remained active and also made one request.
+- The final isolated production build, performance regression script and JavaScript budget gate passed. The PDF test fulfilled the authorized response at the same origin because the local R2 redirect fails browser CORS; hosted direct delivery, actual phone hardware, uploaded R2 logo delivery and post-change Lighthouse remain unverified.
+
+### Release check, 31 October 2026
+
+The five source commits through `52f9953` were pushed to GitHub `main` and reached the production Vercel alias. A clean isolated build passed with Home 214.0/220 KiB, Browse 218.7/220 KiB and Reader 322.5/350 KiB gzip. Live read-only checks returned 200 for core routes, Reader shell, brand assets and an uploaded hero image. The new same-origin Hero Studio preview CSP was visible. Hosted PDF rendering, phone hardware, authenticated Admin workflows and old R2 origin closure remain unverified. See [web release record](docs/handover/WEB_RELEASE_2026-10-31.md).
+
 ## Accessibility (static review, 2026-05-08)
 
 | Severity | Issue | File:Line | Status |
