@@ -1,7 +1,8 @@
 'use client';
 import { AdminPageTitle } from '../admin-page-title';
+import { ReadOnlyOverview } from '../read-only-overview';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertTriangle,
@@ -43,16 +44,19 @@ function fileIcon(key: string) {
 export function StorageClient({
   initialData,
   initialError = '',
+  readOnly = false,
 }: {
   initialData: AdminStorageData | null;
   initialError?: string;
+  readOnly?: boolean;
 }) {
   const ui = useUI();
   const [data, setData] = useState<AdminStorageData | null>(initialData);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!initialData && !initialError);
   const [error, setError] = useState(initialError);
   const [refreshing, setRefreshing] = useState(false);
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
+  const initialLoadStarted = useRef(false);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -75,6 +79,12 @@ export function StorageClient({
       setRefreshing(false);
     }
   }, [ui.toast]);
+
+  useEffect(() => {
+    if (initialData || initialError || initialLoadStarted.current) return;
+    initialLoadStarted.current = true;
+    void load();
+  }, [initialData, initialError, load]);
 
   const grouped = useMemo(() => {
     if (!data) return new Map<string, R2Object[]>();
@@ -142,6 +152,10 @@ export function StorageClient({
         </div>
       </div>
     );
+  }
+
+  if (readOnly) {
+    return <ReadOnlyOverview title="Storage" description="Review stored files and their linked issues." count={data.r2.objectCount} rows={data.r2.objects.slice(0, 100).map(item => ({ id: item.key, title: item.key, subtitle: item.linkedIssue?.title ?? 'No linked issue', status: `${(item.size / 1024 / 1024).toFixed(1)} MB` }))} />;
   }
 
   return (

@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { cache } from 'react';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { auditStatement, findAdminAccount, type AdminAccount } from '@/lib/db/admin-accounts';
 import { hasPermission, type AdminPermission } from '@/lib/admin-permissions';
@@ -6,6 +7,7 @@ import { getDb, nowIso } from '@/lib/db/client';
 
 const ADMIN_COOKIE = 'aim-admin-session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
+const developmentAuthState = globalThis as typeof globalThis & { __aimDevAdminSessionSecret?: string };
 
 interface SessionPayload {
   id: string;
@@ -17,7 +19,13 @@ interface SessionPayload {
 
 function getSessionSecret(): string {
   const secret = process.env.ADMIN_SESSION_SECRET;
-  if (!secret || secret.length < 32) throw new Error('ADMIN_SESSION_SECRET must contain at least 32 characters');
+  if (!secret || secret.length < 32) {
+    if (process.env.NODE_ENV !== 'production') {
+      developmentAuthState.__aimDevAdminSessionSecret ??= randomBytes(32).toString('hex');
+      return developmentAuthState.__aimDevAdminSessionSecret;
+    }
+    throw new Error('ADMIN_SESSION_SECRET must contain at least 32 characters');
+  }
   return secret;
 }
 
@@ -51,7 +59,9 @@ function parseSessionToken(token: string): SessionPayload | null {
   }
 }
 
-export async function verifyAdmin(permission?: AdminPermission): Promise<AdminAccount | null> {
+// One database-backed session lookup per server render. Permission checks stay
+// outside the cache so callers with different requirements share the lookup.
+const verifiedAdminSession = cache(async (): Promise<AdminAccount | null> => {
   const cookieStore = await cookies();
   const session = cookieStore.get(ADMIN_COOKIE);
   if (!session?.value) return null;
@@ -65,11 +75,16 @@ export async function verifyAdmin(permission?: AdminPermission): Promise<AdminAc
     const sessionRecord = await getDb().execute({ sql: 'SELECT id_hash FROM admin_sessions WHERE id_hash=? AND admin_id=? AND revoked_at IS NULL AND expires_at>? LIMIT 1', args: [createHash('sha256').update(parsed.sid).digest('hex'), admin.id, nowIso()] });
     if (!sessionRecord.rows.length) return null;
     if (admin.mustChangePassword && admin.passwordHash && admin.temporaryPasswordExpiresAt && Date.parse(admin.temporaryPasswordExpiresAt) <= Date.now()) return null;
-    if (permission && (admin.mustChangePassword || !hasPermission(admin.roleId, admin.permissions, permission))) return null;
     return admin;
   } catch {
     return null;
   }
+});
+
+export async function verifyAdmin(permission?: AdminPermission): Promise<AdminAccount | null> {
+  const admin = await verifiedAdminSession();
+  if (permission && (!admin || admin.mustChangePassword || !hasPermission(admin.roleId, admin.permissions, permission))) return null;
+  return admin;
 }
 
 export async function createSessionToken(admin: { id: string; email: string; sessionVersion: number }, auditSignIn = false) {

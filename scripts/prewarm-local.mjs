@@ -6,6 +6,7 @@ import { performance } from 'node:perf_hooks';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const BASE_URL = (process.env.PREWARM_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '');
+const adminOnly = process.env.PREWARM_ADMIN_ONLY === '1';
 
 loadEnvFile(resolve(ROOT, 'apps/web/.env.local'));
 loadEnvFile(resolve(ROOT, '.env.local'));
@@ -25,19 +26,27 @@ const adminRoutes = [
   '/admin/issues',
   '/admin/issues/new',
   '/admin/magazines',
+  '/admin/hero',
+  '/admin/hero/library',
+  '/admin/indexing',
+  '/admin/navigation',
   '/admin/storage',
   '/admin/settings',
+  '/admin/users',
+  '/admin/roles',
+  '/admin/activity',
+  '/admin/account',
   '/api/admin/auth/check',
   '/api/admin/issues?page=1&pageSize=25',
   '/api/admin/magazines',
   '/api/admin/topics',
 ];
 
-const issueRoutes = await discoverIssueRoutes();
+const issueRoutes = adminOnly ? [] : await discoverIssueRoutes();
 const cookie = await loginCookie();
 
 console.log(`Prewarming ${BASE_URL}`);
-for (const route of [...publicRoutes, ...issueRoutes]) {
+for (const route of adminOnly ? [] : [...publicRoutes, ...issueRoutes]) {
   await warm(route);
 }
 
@@ -46,7 +55,7 @@ if (cookie) {
     await warm(route, cookie);
   }
 } else {
-  console.log('skip admin routes: ADMIN_PASSWORD is not configured');
+  console.log('skip admin routes: local admin sign-in is unavailable');
 }
 
 async function discoverIssueRoutes() {
@@ -69,7 +78,7 @@ async function loginCookie() {
   const email = process.env.ADMIN_EMAIL || 'admin@aurosociety.org';
   const response = await fetch(`${BASE_URL}/api/admin/auth`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Origin: BASE_URL },
     body: JSON.stringify({ email, password }),
   });
   if (!response.ok) return null;

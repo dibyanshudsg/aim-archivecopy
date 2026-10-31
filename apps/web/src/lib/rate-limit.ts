@@ -8,7 +8,10 @@ let localWriteGate: Promise<void> = Promise.resolve();
 
 function keySecret() {
   const secret = process.env.RATE_LIMIT_SECRET || process.env.ADMIN_SESSION_SECRET;
-  if (!secret || secret.length < 32) throw new Error('RATE_LIMIT_SECRET or ADMIN_SESSION_SECRET must contain at least 32 characters.');
+  if (!secret || secret.length < 32) {
+    if (process.env.NODE_ENV !== 'production') return 'aim-archive-local-rate-limit-development-only';
+    throw new Error('RATE_LIMIT_SECRET or ADMIN_SESSION_SECRET must contain at least 32 characters.');
+  }
   return secret;
 }
 
@@ -75,6 +78,7 @@ async function consumeOnce(buckets: Bucket[]): Promise<{ allowed: true } | { all
 }
 
 export async function consumeRateLimit(buckets: Bucket[]): Promise<{ allowed: true } | { allowed: false; retryAfter: number }> {
+  if (buckets.length === 1) return consumeSingleBucket(buckets[0]);
   let release!: () => void;
   const previous = localWriteGate;
   localWriteGate = new Promise<void>(resolve => { release = resolve; });
@@ -89,6 +93,48 @@ export async function consumeRateLimit(buckets: Bucket[]): Promise<{ allowed: tr
       }
     }
   } finally { release(); }
+}
+
+/** A single public bucket needs one atomic write, not a serialized read/write transaction. */
+async function consumeSingleBucket(bucket: Bucket): Promise<{ allowed: true } | { allowed: false; retryAfter: number }> {
+  const capacity = Math.max(1, Math.floor(bucket.capacity * capacityScale()));
+  const cost = bucket.cost ?? 1;
+  if (cost > capacity) return { allowed: false, retryAfter: bucket.windowSeconds };
+  const key = keyHash(bucket.scope, bucket.identity);
+  const refillPerMs = capacity / (bucket.windowSeconds * 1000);
+  const db = getDb();
+
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const now = Date.now();
+      const result = await db.execute({
+        sql: `INSERT INTO rate_limit_buckets(key_hash,tokens,updated_at_ms,expires_at_ms)
+          VALUES(?,?,?,?)
+          ON CONFLICT(key_hash) DO UPDATE SET
+            tokens=min(?,rate_limit_buckets.tokens+max(0,?-rate_limit_buckets.updated_at_ms)*?)-?,
+            updated_at_ms=excluded.updated_at_ms,
+            expires_at_ms=excluded.expires_at_ms
+          WHERE min(?,rate_limit_buckets.tokens+max(0,?-rate_limit_buckets.updated_at_ms)*?)>=?
+          RETURNING tokens`,
+        args: [key, capacity - cost, now, now + bucket.windowSeconds * 2000,
+          capacity, now, refillPerMs, cost, capacity, now, refillPerMs, cost],
+      });
+      if (result.rows.length > 0) {
+        if (Math.random() < 0.002) await db.execute({ sql: 'DELETE FROM rate_limit_buckets WHERE expires_at_ms<?', args: [now] });
+        return { allowed: true };
+      }
+      const previous = await db.execute({
+        sql: 'SELECT tokens,updated_at_ms FROM rate_limit_buckets WHERE key_hash=?', args: [key],
+      });
+      const row = previous.rows[0];
+      const available = row ? Math.min(capacity, Number(row.tokens) + Math.max(0, Date.now() - Number(row.updated_at_ms)) * refillPerMs) : 0;
+      return { allowed: false, retryAfter: Math.max(1, Math.min(3600, Math.ceil((cost - available) / refillPerMs / 1000))) };
+    } catch (error) {
+      const code = (error as { code?: string }).code;
+      if (!['SQLITE_BUSY', 'LIBSQL_BUSY'].includes(code || '') || attempt >= 7) throw error;
+      await new Promise(resolve => setTimeout(resolve, Math.min(120, 8 * 2 ** attempt) + Math.floor(Math.random() * 12)));
+    }
+  }
 }
 
 export function rateLimitResponse(retryAfter: number) {
