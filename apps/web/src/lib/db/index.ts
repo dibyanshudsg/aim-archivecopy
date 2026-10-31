@@ -4,3 +4,4 @@ export * from './public-repository';
 export * from './search-repository';
 export * from './site-settings-repository';
 export * from './navigation-repository';
+export * from './hero-presentations-repository';

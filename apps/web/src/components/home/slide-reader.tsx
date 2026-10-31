@@ -42,11 +42,13 @@ export default function SlideReader({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const mobileSentinelRef = useRef<HTMLDivElement>(null);
   const bookCardRef = useRef<HTMLDivElement>(null);
   const [baseBookWidth, setBaseBookWidth] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const pdfRetry = usePdfRetry(pdfUrl);
   const [numPages, setNumPages] = useState<number | null>(null);
+  const [mobileRenderedCount, setMobileRenderedCount] = useState(3);
   const [loadError, setLoadError] = useState(false);
   /** 1 = next-page motion, -1 = prev-page motion. */
   const [pageDirection, setPageDirection] = useState(1);
@@ -60,13 +62,16 @@ export default function SlideReader({
   const reduceMotion = useReducedMotion();
   /** True at lg+ (≥1024px) — drives two-page-spread mode. */
   const isSpread = useMediaQuery('(min-width: 1024px)');
+  const isPhone = useMediaQuery('(max-width: 639px)');
   useLayoutEffect(() => {
     const scroller = scrollerRef.current;
     if (!scroller) return;
     const measure = () => {
       const styles = window.getComputedStyle(scroller);
       const available = scroller.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
-      const preferred = isSpread
+      const preferred = isPhone
+        ? available
+        : isSpread
         ? Math.max(480, window.innerHeight * 1.5 - 352)
         : Math.max(230, window.innerHeight * 0.75 - 176);
       setBaseBookWidth(Math.max(1, Math.round(Math.min(available, preferred))));
@@ -79,7 +84,20 @@ export default function SlideReader({
       observer.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, [isSpread]);
+  }, [isPhone, isSpread]);
+  useEffect(() => {
+    setMobileRenderedCount(3);
+  }, [pdfUrl]);
+  useEffect(() => {
+    if (!isPhone || !numPages || mobileRenderedCount >= numPages) return;
+    const sentinel = mobileSentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) setMobileRenderedCount((count) => Math.min(numPages, count + 3));
+    }, { rootMargin: '600px 0px' });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [isPhone, mobileRenderedCount, numPages]);
   /** Step size — turn the whole spread (2 pages) on desktop, single page on
    *  smaller viewports. */
   const step = isSpread ? 2 : 1;
@@ -217,6 +235,43 @@ export default function SlideReader({
     }
     return `${page} / ${numPages}`;
   })();
+
+  if (isPhone) {
+    const phonePageWidth = baseBookWidth ? Math.floor(baseBookWidth) : 0;
+    return (
+      <div ref={scrollerRef} className="w-full overflow-x-hidden bg-white px-3 py-5">
+        {loadError ? (
+          <div className="relative mx-auto aspect-[3/4] w-full max-w-md">
+            <CoverFallback coverUrl={fallbackCoverUrl} magazineName={magazineName} monthName={monthName} year={year} language={language} title={fallbackTitle} />
+          </div>
+        ) : phonePageWidth > 0 ? (
+          <Document
+            key={`${pdfUrl}:${pdfRetry.revision}`}
+            file={file}
+            onLoadSuccess={({ numPages: n }) => setNumPages(n)}
+            onLoadError={(error) => { if (!pdfRetry.retry(error)) setLoadError(true); }}
+            onSourceError={(error) => { if (!pdfRetry.retry(error)) setLoadError(true); }}
+            loading={fallbackCoverUrl ? <PdfCoverImage coverUrl={fallbackCoverUrl} title={fallbackTitle} pageWidth={phonePageWidth} decorative={false} /> : <PageTurnSkeleton width={phonePageWidth} />}
+            className="mx-auto flex max-w-full flex-col items-center gap-4"
+          >
+            {Array.from({ length: Math.min(numPages ?? 1, mobileRenderedCount) }, (_, index) => (
+              <div key={index + 1} className="max-w-full overflow-hidden bg-white shadow-sm">
+                <Page
+                  pageNumber={index + 1}
+                  width={phonePageWidth}
+                  devicePixelRatio={hiDPI}
+                  renderTextLayer={false}
+                  renderAnnotationLayer={false}
+                  loading={index === 0 && fallbackCoverUrl ? <PdfCoverImage coverUrl={fallbackCoverUrl} title={fallbackTitle} pageWidth={phonePageWidth} decorative={false} /> : <PageTurnSkeleton width={phonePageWidth} />}
+                />
+              </div>
+            ))}
+          </Document>
+        ) : null}
+        {numPages && mobileRenderedCount < numPages ? <div ref={mobileSentinelRef} className="h-4" aria-hidden="true" /> : null}
+      </div>
+    );
+  }
 
   return (
     <div

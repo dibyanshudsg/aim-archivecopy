@@ -1,6 +1,8 @@
 import { getDb, nowIso } from './db/client';
-import { monthInIndia } from './embargo';
-import { supportedAssetSql } from './asset-url';
+import { monthInIndia, readableCutoffIssueMonth } from './embargo';
+import { isSupportedAssetUrl, supportedAssetSql } from './asset-url';
+import { publicCoverRoute } from './public-asset-routes';
+import type { HeroPickerIssue } from './hero-picker-issue';
 
 export interface HeroIssue {
   id: string;
@@ -103,22 +105,27 @@ function archiveForMonth(issues: HeroIssue[], code: number): HeroIssue | null {
 }
 
 export async function getHeroSchedule(now = new Date()): Promise<HeroMagazine[]> {
+  return (await getHeroScheduleAndCatalogue(now)).schedule;
+}
+
+export async function getHeroScheduleAndCatalogue(now = new Date()): Promise<{ schedule: HeroMagazine[]; catalogue: HeroPickerIssue[] }> {
   const today = monthInIndia(now);
   const currentCode = dateCode(today);
   const nextCode = currentCode + 1;
   const [magazines, issues, controls] = await Promise.all([
     getDb().execute('SELECT id,name FROM magazines ORDER BY created_at ASC'),
-    getDb().execute(`SELECT id,magazine_id,title,year,month,is_published,cover_image_url FROM issues
+    getDb().execute(`SELECT id,magazine_id,title,theme,year,month,is_published,cover_image_url FROM issues
       WHERE ${supportedAssetSql('pdf_url')} ORDER BY year DESC, month DESC`),
     readControls(),
   ]);
   const hiddenIds = new Set(controls.hidden);
+  const themes = new Map(issues.rows.map((row) => [String(row.id), row.theme == null ? null : String(row.theme)]));
   const all = Array.from(issues.rows, (row): HeroIssue => ({
     id: String(row.id), magazine_id: String(row.magazine_id), title: String(row.title),
     year: Number(row.year), month: Number(row.month), is_published: Number(row.is_published) === 1,
     cover_image_url: typeof row.cover_image_url === 'string' ? row.cover_image_url : null,
   }));
-  return Array.from(magazines.rows, (row): HeroMagazine => {
+  const schedule = Array.from(magazines.rows, (row): HeroMagazine => {
     const id = String(row.id);
     const own = all.filter((issue) => issue.magazine_id === id);
     const eligible = own.filter((issue) => issue.is_published && dateCode(issue) <= currentCode);
@@ -161,6 +168,21 @@ export async function getHeroSchedule(now = new Date()): Promise<HeroMagazine[]>
       current_override: Boolean(overrideIssue), next_choice_unavailable: nextChoice !== 'automatic' && !requestedNext,
     };
   });
+  const names = new Map(schedule.map((magazine) => [magazine.id, magazine.name]));
+  const liveIds = new Set(schedule.map((magazine) => magazine.live?.id).filter((id): id is string => Boolean(id)));
+  const cutoffCode = dateCode(readableCutoffIssueMonth(now));
+  const catalogue = all.filter((issue) => issue.is_published && dateCode(issue) <= currentCode && names.has(issue.magazine_id)).map((issue) => ({
+    id: issue.id,
+    magazine_id: issue.magazine_id,
+    magazine_name: names.get(issue.magazine_id)!,
+    title: issue.title,
+    theme: themes.get(issue.id) ?? null,
+    year: issue.year,
+    month: issue.month,
+    cover_image_url: isSupportedAssetUrl(issue.cover_image_url) ? publicCoverRoute(issue.id) : null,
+    readable: dateCode(issue) <= cutoffCode || liveIds.has(issue.id),
+  }));
+  return { schedule, catalogue };
 }
 
 export async function getLiveHeroIssueIds(now = new Date()): Promise<Set<string>> {

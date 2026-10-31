@@ -1,25 +1,34 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { getImageProps, type StaticImageData } from 'next/image';
 import Image from '@/components/magazine/archive-image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowRight,
   ArrowLeft,
   BookOpen,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
+  FileText,
   Heart,
+  RotateCcw,
 } from 'lucide-react';
-import type { ApiIssue, ApiMagazine } from '@/lib/api';
+import type { ApiIssue, ApiMagazine, HeroPresentationTheme } from '@/lib/api';
+import { HeroIssuePicker } from './hero-issue-picker';
+import { issueDetailPath } from '@/lib/issue-detail-url';
+import type { HeroPickerIssue } from '@/lib/hero-picker-issue';
+import { HERO_PLACEMENT_DEFAULTS, resolveHeroPlacement as resolvePlacement, type HeroPlacement } from '@/lib/hero-placement';
 import { MONTH_NAMES } from '@aim-archive/shared';
 import type { Language, MonthIndex } from '@aim-archive/shared';
 import { useBookmarks } from '@/lib/bookmarks-store';
 import { readerPath, rememberReaderSource } from '@/lib/reader-url';
-import { Flame } from './flame';
-import { cn, formatFileSize } from '@/lib/utils';
+import { cn, formatFileSize, formatMonthYear } from '@/lib/utils';
+import aimOctoberPhoneHero from './aim-oct-2026-phone.png';
 const SlideReader = dynamic(() => import('./slide-reader'), { ssr: false });
 
 
@@ -27,6 +36,100 @@ interface ThisMonthFeaturedProps {
   magazines: ApiMagazine[];
   /** One server-selected live issue per magazine. */
   issues: ApiIssue[];
+  archiveIssues: HeroPickerIssue[];
+}
+
+type CoverPalette = { dominant: string; foreground: string };
+const DEFAULT_COVER_PALETTE: CoverPalette = { dominant: '#0e3f63', foreground: '#f6e8c0' };
+const coverPaletteCache = new Map<string, CoverPalette>();
+function darkCoverColour(colour: string, maxLuminance: number): string {
+  const rgb=/^rgb\((\d+)\s+(\d+)\s+(\d+)\)$/.exec(colour);
+  const hex=/^#([0-9a-f]{6})$/i.exec(colour);
+  const channels=rgb?[Number(rgb[1]),Number(rgb[2]),Number(rgb[3])]:hex?[0,2,4].map(index=>parseInt(hex[1].slice(index,index+2),16)):null;
+  if(!channels)return DEFAULT_COVER_PALETTE.dominant;
+  const luminance=(scale:number)=>{
+    const linear=channels.map(channel=>{
+      const value=channel*scale/255;
+      return value<=0.04045?value/12.92:((value+0.055)/1.055)**2.4;
+    });
+    return 0.2126*linear[0]+0.7152*linear[1]+0.0722*linear[2];
+  };
+  if(luminance(1)<=maxLuminance)return `rgb(${channels.join(' ')})`;
+  let low=0,high=1;
+  for(let step=0;step<10;step++){
+    const middle=(low+high)/2;
+    if(luminance(middle)>maxLuminance)high=middle;
+    else low=middle;
+  }
+  return `rgb(${channels.map(channel=>Math.round(channel*low)).join(' ')})`;
+}
+function heroColours(palette: CoverPalette, theme?: HeroPresentationTheme | null) {
+  const dominant=palette.dominant;
+  const savedTheme=theme as (HeroPresentationTheme & {preference?:string;accentOverride?:string|null}) | null | undefined;
+  const useCoverColours=(savedTheme?.preference===undefined||savedTheme.preference==='auto')&&theme?.text?.toLowerCase()!=='#ffffff';
+  const heading=darkCoverColour(dominant,0.14);
+  const body=darkCoverColour(dominant,0.16);
+  const button=darkCoverColour(dominant,0.14);
+  return {
+    heading:useCoverColours?heading:theme?.text??heading,
+    body:useCoverColours?body:theme?.mutedText??body,
+    button:useCoverColours&&!savedTheme?.accentOverride?button:theme?.primaryBackground??button,
+    buttonForeground:useCoverColours&&!savedTheme?.accentOverride?'#fff':theme?.primaryForeground??'#fff',
+  };
+}
+const TRANSPARENT_PIXEL = 'data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=';
+
+function ScenicBackground({ src, media, sizes, className, onReady }: {
+  src: string | StaticImageData;
+  media: string;
+  sizes: string;
+  className?: string;
+  onReady: () => void;
+}) {
+  const { props } = getImageProps({
+    src,
+    alt: '',
+    fill: true,
+    sizes,
+    unoptimized: typeof src === 'string' && src.startsWith('/api/admin/'),
+  });
+  return (
+    <picture>
+      <source media={media} srcSet={props.srcSet ?? props.src} sizes={props.sizes} />
+      {/* The unmatched viewport receives a transparent pixel; only the matching source downloads. */}
+      <img src={TRANSPARENT_PIXEL} alt="" style={props.style} className={className} fetchPriority="high" onLoad={(event) => {
+        if (event.currentTarget.currentSrc !== TRANSPARENT_PIXEL) onReady();
+      }} />
+    </picture>
+  );
+}
+
+function useCoverPalette(coverUrl: string | null, coverLoaded: boolean): CoverPalette {
+  const [palette, setPalette] = useState(() => coverUrl ? coverPaletteCache.get(coverUrl) ?? DEFAULT_COVER_PALETTE : DEFAULT_COVER_PALETTE);
+
+  useEffect(() => {
+    if (!coverUrl) {
+      setPalette(DEFAULT_COVER_PALETTE);
+      return;
+    }
+
+    const cached = coverPaletteCache.get(coverUrl);
+    if (cached) { setPalette(cached); return; }
+    if (!coverLoaded) return;
+    let cancelled = false;
+    const separator = coverUrl.includes('?') ? '&' : '?';
+    fetch(`${coverUrl}${separator}palette=1`)
+      .then((response) => response.ok ? response.json() as Promise<CoverPalette | null> : null)
+      .then((nextPalette) => {
+        if (!nextPalette || cancelled) return;
+        coverPaletteCache.set(coverUrl, nextPalette);
+        setPalette(nextPalette);
+      })
+      .catch(() => { if (!cancelled) setPalette(DEFAULT_COVER_PALETTE); });
+    return () => { cancelled = true; };
+  }, [coverUrl, coverLoaded]);
+
+  return palette;
 }
 
 type MagazineFilter = 'all' | string;
@@ -34,18 +137,29 @@ const EMPTY_ISSUES: ApiIssue[] = [];
 
 /**
  * Homepage issue feature. Shows one readable issue at a time with magazine
- * filters and an opt-in previous-month selector.
+ * filters and date-ordered navigation.
  *
- * No auto-rotation. Navigation is fully manual via the control bar (or
- * keyboard ← / →). Touch swipes within the embedded reader turn pages of the
- * issue but never switch issues — that requires the explicit nav buttons.
+ * No auto-rotation. Issues change through the control bar, keyboard arrows,
+ * or horizontal swipes on the hero. Swipes in the embedded reader turn pages.
  */
 export function ThisMonthFeatured({
   magazines,
   issues,
+  archiveIssues,
 }: ThisMonthFeaturedProps) {
-  const prefersReducedMotion = useReducedMotion();
+  const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
+  const swipeStartRef = useRef<{x:number;y:number;identifier:number}|null>(null);
+  const pendingSelectionRef = useRef<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const closePicker = useCallback(() => setPickerOpen(false), []);
+  const heroReadyIds = useMemo(() => new Set(issues.filter((issue) => (
+    issue.hero?.mobileUrl && issue.hero.desktopUrl.startsWith('/api/hero-assets/')
+  ) || (
+    issue.hero?.desktopUrl === '/aim-oct-2026-hero.png' &&
+    issue.year === 2026 && issue.month === 10 &&
+    issue.magazines.name.toLowerCase().includes('all india')
+  )).map((issue) => issue.id)), [issues]);
 
   // ---------- Filter state ----------
   const [magazineFilter, setMagazineFilter] = useState<MagazineFilter>(() =>
@@ -76,7 +190,7 @@ export function ThisMonthFeatured({
     () =>
       monthSet.filter((i) =>
         magazineFilter === 'all' ? true : i.magazine_id === magazineFilter,
-      ),
+      ).sort((a, b) => a.year - b.year || a.month - b.month || a.title.localeCompare(b.title)),
     [monthSet, magazineFilter],
   );
 
@@ -97,39 +211,83 @@ export function ThisMonthFeatured({
   }, [magazineFilter, magazinesInView]);
 
   // ---------- Slideshow state ----------
-  const [currentIndex, setCurrentIndex] = useState(0);
-  /** 1 = forward slide animation, -1 = backward. */
-  const [direction, setDirection] = useState(1);
+  const [currentIndex, setCurrentIndex] = useState(() => Math.max(0, visibleIssues.length - 1));
+  const [slideDirection, setSlideDirection] = useState<-1|0|1>(0);
+  const [heroHasEntered, setHeroHasEntered] = useState(false);
+  const reduceMotion = useReducedMotion();
 
-  // Reset to the first slide whenever the visible set changes (new filter or
-  // new month-window selection).
+  // Start each filtered set at its newest issue.
   useEffect(() => {
-    setCurrentIndex(0);
-    setDirection(1);
-  }, [magazineFilter, showPrevious]);
+    setSlideDirection(0);
+    const requested = pendingSelectionRef.current;
+    const requestedIndex = requested ? visibleIssues.findIndex((issue) => issue.id === requested) : -1;
+    if (requestedIndex >= 0) pendingSelectionRef.current = null;
+    setCurrentIndex(requestedIndex >= 0 ? requestedIndex : Math.max(0, visibleIssues.length - 1));
+  }, [magazineFilter, showPrevious, visibleIssues]);
 
   // Defensive clamp — if the visible set shrinks to fewer items than the
   // current index, snap back to start.
   useEffect(() => {
-    if (currentIndex >= visibleIssues.length) setCurrentIndex(0);
+    if (currentIndex >= visibleIssues.length) setCurrentIndex(Math.max(0, visibleIssues.length - 1));
   }, [visibleIssues.length, currentIndex]);
 
   function goPrev() {
-    if (visibleIssues.length <= 1) return;
-    setDirection(-1);
-    setCurrentIndex(
-      (idx) => (idx - 1 + visibleIssues.length) % visibleIssues.length,
-    );
+    if (currentIndex <= 0) return;
+    setSlideDirection(-1);
+    setCurrentIndex((idx) => Math.max(0, idx - 1));
   }
   function goNext() {
-    if (visibleIssues.length <= 1) return;
-    setDirection(1);
-    setCurrentIndex((idx) => (idx + 1) % visibleIssues.length);
+    if (currentIndex >= visibleIssues.length - 1) return;
+    setSlideDirection(1);
+    setCurrentIndex((idx) => Math.min(visibleIssues.length - 1, idx + 1));
   }
   function jumpTo(idx: number) {
     if (idx === currentIndex) return;
-    setDirection(idx > currentIndex ? 1 : -1);
+    setSlideDirection(idx > currentIndex ? 1 : -1);
     setCurrentIndex(idx);
+  }
+
+  function selectPickerIssue(issue: HeroPickerIssue) {
+    closePicker();
+    if (heroReadyIds.has(issue.id)) {
+      const visibleIndex = visibleIssues.findIndex((candidate) => candidate.id === issue.id);
+      if (visibleIndex >= 0) jumpTo(visibleIndex);
+      else {
+        pendingSelectionRef.current = issue.id;
+        setMagazineFilter(issue.magazine_id);
+      }
+      requestAnimationFrame(() => containerRef.current?.scrollIntoView({ behavior: reduceMotion ? 'instant' : 'smooth', block: 'start' }));
+      return;
+    }
+    if (issue.readable) {
+      rememberReaderSource(issue.id, 'shelf');
+      router.push(readerPath(issue.id));
+    } else {
+      router.push(issueDetailPath(issue.id));
+    }
+  }
+
+  function onHeroTouchStart(event: React.TouchEvent<HTMLDivElement>) {
+    const target=event.target;
+    if(visibleIssues.length<=1||event.touches.length!==1||!(target instanceof Element)||!target.closest('[data-hero-swipe]')||target.closest('button,a,input,select,textarea,[role="button"]')){
+      swipeStartRef.current=null;
+      return;
+    }
+    const touch=event.touches[0];
+    swipeStartRef.current={x:touch.clientX,y:touch.clientY,identifier:touch.identifier};
+  }
+
+  function onHeroTouchEnd(event: React.TouchEvent<HTMLDivElement>) {
+    const start=swipeStartRef.current;
+    swipeStartRef.current=null;
+    if(!start)return;
+    const touch=Array.from(event.changedTouches).find(item=>item.identifier===start.identifier);
+    if(!touch)return;
+    const deltaX=touch.clientX-start.x;
+    const deltaY=touch.clientY-start.y;
+    if(Math.abs(deltaX)<60||Math.abs(deltaX)<Math.abs(deltaY)*1.5)return;
+    if(deltaX<0)goNext();
+    else goPrev();
   }
 
   // Keyboard navigation — only when focus is inside the carousel section.
@@ -138,15 +296,16 @@ export function ThisMonthFeatured({
       if (!containerRef.current?.contains(document.activeElement)) return;
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        goPrev();
+        setSlideDirection(-1);
+        setCurrentIndex((index) => Math.max(0, index - 1));
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
-        goNext();
+        setSlideDirection(1);
+        setCurrentIndex((index) => Math.min(visibleIssues.length - 1, index + 1));
       }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleIssues.length]);
 
   // Preload neighbour issues' cover JPEGs and PDFs into the browser cache so
@@ -192,7 +351,7 @@ export function ThisMonthFeatured({
 
   return (
     <section
-      className="relative mx-auto w-full max-w-[1440px]"
+      className="relative -mx-4 -mt-5 w-[calc(100%+2rem)] max-w-none sm:-mx-6 sm:-mt-9 sm:w-[calc(100%+3rem)] lg:mx-auto lg:mt-0 lg:w-full"
       aria-label="Featured issues"
     >
 
@@ -222,29 +381,29 @@ export function ThisMonthFeatured({
         ) : (
           <>
             <div
-              className="relative overflow-hidden rounded-2xl"
+              className="relative overflow-hidden"
               aria-roledescription="slide"
               aria-label={`${safeIndex + 1} of ${visibleIssues.length}`}
             >
-              <AnimatePresence mode="wait" custom={direction} initial={false}>
+              <AnimatePresence initial={false} mode="popLayout" custom={slideDirection}>
                 <motion.div
                   key={currentIssue!.id}
-                  custom={direction}
-                  initial={
-                    prefersReducedMotion
-                      ? { opacity: 0 }
-                      : { opacity: 0, x: direction * 32 }
-                  }
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={
-                    prefersReducedMotion
-                      ? { opacity: 0 }
-                      : { opacity: 0, x: -direction * 32 }
-                  }
-                  transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                  custom={slideDirection}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  variants={{
+                    enter:(direction:number)=>({x:reduceMotion||direction===0?'0%':`${direction*100}%`}),
+                    center:{x:'0%'},
+                    exit:(direction:number)=>({x:reduceMotion||direction===0?'0%':`${direction*-100}%`}),
+                  }}
+                  transition={{duration:reduceMotion?0.01:0.28,ease:[0.22,1,0.36,1]}}
                   className="touch-pan-y"
+                  onTouchStart={onHeroTouchStart}
+                  onTouchEnd={onHeroTouchEnd}
+                  onTouchCancel={()=>{swipeStartRef.current=null;}}
                 >
-                  <FeaturedSlide issue={currentIssue!} />
+                  <FeaturedSlide issue={currentIssue!} animateEntrance={!heroHasEntered} onHeroReady={() => setHeroHasEntered(true)} />
                 </motion.div>
               </AnimatePresence>
             </div>
@@ -255,6 +414,7 @@ export function ThisMonthFeatured({
               goPrev={goPrev}
               goNext={goNext}
               jumpTo={jumpTo}
+              openPicker={() => setPickerOpen(true)}
             />
           </>
         )}
@@ -291,6 +451,7 @@ export function ThisMonthFeatured({
           )}
         </div>
       )}
+      <HeroIssuePicker open={pickerOpen} initialYear={currentIssue?.year ?? new Date().getFullYear()} issues={archiveIssues} heroReadyIds={heroReadyIds} onClose={closePicker} onSelect={selectPickerIssue} />
     </section>
   );
 }
@@ -324,10 +485,7 @@ function MagazineFilterStrip({
     { value: 'all', label: 'All' },
   ];
   return (
-    <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-600">
-        Magazine
-      </span>
+    <div className="flex w-full min-w-0 justify-center sm:w-auto">
       <div className="flex w-full min-w-0 flex-wrap justify-center gap-1.5 sm:w-auto sm:flex-nowrap">
         {options.map((opt) => {
           const active = opt.value === value;
@@ -432,59 +590,76 @@ function CarouselControls({
   goPrev,
   goNext,
   jumpTo,
+  openPicker,
 }: {
   issues: ApiIssue[];
   currentIndex: number;
   goPrev: () => void;
   goNext: () => void;
   jumpTo: (i: number) => void;
+  openPicker: () => void;
 }) {
-  if (issues.length <= 1) return null;
+  if (issues.length === 0) return null;
+  const recentIndex = issues.length - 1;
+  const showingOlderIssue = currentIndex < recentIndex;
+  const selectedIssue = issues[currentIndex];
   return (
-    <div className="mt-6 flex items-center justify-center gap-3 px-6 sm:gap-4 sm:px-0">
+    <div className="mt-6 px-4 sm:px-0">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+      <div className="col-start-2 flex items-center justify-center gap-2 sm:gap-4">
       <button
         type="button"
         onClick={goPrev}
-        aria-label="Previous edition"
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-flame-300 bg-white text-flame-600 shadow-sm transition-all hover:border-flame-500 hover:bg-flame-50 hover:text-flame-700"
+        disabled={currentIndex === 0}
+        aria-label="Older edition"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-flame-300 bg-white text-flame-600 shadow-sm transition-colors hover:border-flame-500 hover:bg-flame-50 hover:text-flame-700 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 disabled:shadow-none"
       >
         <ChevronLeft className="h-5 w-5" strokeWidth={2.5} />
       </button>
 
-      <div className="flex items-center gap-1">
-        {issues.map((issue, i) => (
-          <button
-            key={issue.id}
-            type="button"
-            onClick={() => jumpTo(i)}
-            aria-label={`Go to edition ${i + 1} of ${issues.length}`}
-            aria-current={i === currentIndex}
-            className="flex h-9 w-9 items-center justify-center"
+      <button
+        type="button"
+        onClick={openPicker}
+        aria-label={`Choose an archive issue, starting with ${formatMonthYear(selectedIssue.month, selectedIssue.year)}`}
+        className="inline-flex min-h-11 min-w-32 items-center justify-center gap-2 rounded-full border border-flame-200 bg-white px-3 text-sm font-semibold text-flame-700 shadow-sm transition-colors hover:border-flame-300 hover:bg-flame-50 sm:min-w-40 sm:px-4"
+      >
+        <CalendarDays className="h-4 w-4 shrink-0" aria-hidden="true" />
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.span
+            key={selectedIssue.id}
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.16 }}
           >
-            <span
-              className={cn(
-                'h-2 rounded-full transition-all',
-                i === currentIndex
-                  ? 'w-9 bg-gradient-to-r from-gold-500 to-flame-500'
-                  : 'w-2 bg-flame-200 hover:bg-flame-300',
-              )}
-            />
-          </button>
-        ))}
-      </div>
+            {formatMonthYear(selectedIssue.month, selectedIssue.year)}
+          </motion.span>
+        </AnimatePresence>
+      </button>
 
       <button
         type="button"
         onClick={goNext}
-        aria-label="Next edition"
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-flame-300 bg-white text-flame-600 shadow-sm transition-all hover:border-flame-500 hover:bg-flame-50 hover:text-flame-700"
+        disabled={currentIndex === recentIndex}
+        aria-label="Newer edition"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-flame-300 bg-white text-flame-600 shadow-sm transition-colors hover:border-flame-500 hover:bg-flame-50 hover:text-flame-700 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 disabled:shadow-none"
       >
         <ChevronRight className="h-5 w-5" strokeWidth={2.5} />
       </button>
+      </div>
 
-      <span className="ml-1 hidden text-xs font-semibold tabular-nums text-gray-600 sm:inline">
-        {currentIndex + 1} / {issues.length}
-      </span>
+      {showingOlderIssue && (
+        <button
+          type="button"
+          onClick={() => jumpTo(recentIndex)}
+          aria-label="Jump to most recent issue"
+          title="Most recent issue"
+          className="col-span-3 mt-1 flex h-10 w-10 items-center justify-center justify-self-center rounded-full border border-flame-200 bg-white text-flame-700 shadow-sm transition-colors hover:border-flame-300 hover:bg-flame-50 sm:col-span-1 sm:col-start-3 sm:ml-2 sm:mt-0 sm:justify-self-start"
+        >
+          <RotateCcw className="h-4 w-4" aria-hidden="true" />
+        </button>
+      )}
+      </div>
     </div>
   );
 }
@@ -556,21 +731,28 @@ function EmptyCard({
 }
 
 // ---------- Single slide (rich, focused — with embedded reader) ----------
-function FeaturedSlide({ issue }: { issue: ApiIssue }) {
+function FeaturedSlide({ issue, animateEntrance, onHeroReady }: { issue: ApiIssue; animateEntrance: boolean; onHeroReady: () => void }) {
+  const router = useRouter();
   const reduceMotion = useReducedMotion();
   const { toggle, isBookmarked } = useBookmarks();
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [coverState, setCoverState] = useState<'loading' | 'loaded' | 'error'>('loading');
   const articleRef = useRef<HTMLElement>(null);
-  const previewButtonRef = useRef<HTMLButtonElement>(null);
   const backButtonRef = useRef<HTMLButtonElement>(null);
-  const hasOpenedPreview = useRef(false);
   const bookmarked = isBookmarked(issue.id);
+  const [coverLoaded,setCoverLoaded]=useState(false);
+  const onCoverLoad=useCallback(()=>setCoverLoaded(true),[]);
+  const coverPalette = useCoverPalette(issue.cover_image_url,coverLoaded);
 
   function changePreview(open: boolean) {
-    if (open) hasOpenedPreview.current = true;
+    if (open && !issue.pdf_url) return;
     setPreviewOpen(open);
     requestAnimationFrame(() => articleRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' }));
+  }
+
+  function openBook() {
+    if (!issue.pdf_url) return;
+    rememberReaderSource(issue.id,'shelf');
+    router.push(readerPath(issue.id));
   }
 
   const monthName = MONTH_NAMES[issue.month as MonthIndex];
@@ -583,96 +765,46 @@ function FeaturedSlide({ issue }: { issue: ApiIssue }) {
   // Embargoed issues never reach the carousel (server fetch filters them),
   // but if a `pdf_url` ever lands null here we'd hand react-pdf a broken
   // input — so the carousel just won't render the slide.
-  if (!issue.pdf_url) return null;
-
   return (
-    <article ref={articleRef} className="scroll-mt-20 overflow-hidden rounded-2xl bg-[#fffdf9] shadow-[0_18px_48px_rgba(83,58,22,0.13)]">
+    <article ref={articleRef} className="scroll-mt-20 overflow-hidden bg-[#fffdf9]">
       <AnimatePresence mode="wait" initial={false}>
-      {!previewOpen ? <motion.div key="issue" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -10 }} transition={{ duration: 0.24 }} onAnimationComplete={() => { if (hasOpenedPreview.current && !previewOpen) previewButtonRef.current?.focus(); }} className="grid md:grid-cols-[minmax(280px,0.76fr)_minmax(0,1fr)]">
-        <button type="button" onClick={() => changePreview(true)} aria-label={`Preview ${issue.title}`} className="feature-cover-stage relative flex min-h-[278px] items-center justify-center overflow-hidden px-7 py-8 text-left sm:min-h-[400px] sm:px-10 sm:py-10 md:min-h-[485px]">
-          <span className="feature-ember left-[18%] top-[25%]" aria-hidden="true" />
-          <span className="feature-ember right-[15%] top-[22%]" aria-hidden="true" />
-          <span className="feature-ember left-[13%] bottom-[26%]" aria-hidden="true" />
-          <span className="feature-ember right-[12%] bottom-[20%]" aria-hidden="true" />
-          {issue.cover_image_url ? (
-            <div className="feature-magazine relative aspect-[2/3] w-[150px] shrink-0 sm:w-[235px] md:w-[250px]">
-              {coverState !== 'loaded' && (
-                <div className="absolute inset-0 flex items-center justify-center bg-[#fffaf1]">
-                  {coverState === 'loading' ? (
-                    <Flame className="pointer-events-none scale-[0.8] sm:scale-100" />
-                  ) : (
-                    <span className="px-5 text-center font-heading text-base leading-snug text-gray-800 sm:text-xl">{issue.title}</span>
-                  )}
-                </div>
-              )}
-              <Image
-                src={issue.cover_image_url}
-                alt={issue.title}
-                fill
-                priority
-                sizes="(max-width: 640px) 150px, 250px"
-                onLoad={() => setCoverState('loaded')}
-                onError={() => setCoverState('error')}
-                className={cn('object-contain', coverState === 'loaded' ? 'opacity-100' : 'opacity-0')}
-              />
-            </div>
-          ) : (
-            <div className="feature-magazine flex aspect-[2/3] w-[150px] items-center justify-center bg-white px-5 text-center font-heading text-xl leading-snug text-gray-800 sm:w-[235px]">
-              {issue.title}
-            </div>
-          )}
-        </button>
-
-        <div className="flex min-w-0 flex-col justify-between px-6 pb-7 pt-8 sm:px-10 sm:pb-10 sm:pt-10 lg:px-14 lg:pt-12">
-          <div>
-            <h1 className="font-heading break-words text-[clamp(1.35rem,5.5vw,2.65rem)] leading-[1.12] tracking-[-0.025em] text-[#28231c]">
-              {issue.theme || issue.title}
-            </h1>
-            <p className="mt-4 text-sm font-semibold text-[#925526] sm:text-base">
-              {eyebrow}
-            </p>
-            {issue.description && (
-              <p className="mt-5 line-clamp-4 max-w-[62ch] text-sm leading-[1.8] text-gray-700 sm:text-base">
-                {issue.description}
-              </p>
-            )}
-          </div>
-
-          <div className="mt-7">
-            <div className="grid grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_3rem] items-center gap-2 sm:flex sm:flex-wrap sm:gap-2.5">
-              <Link
-                href={readerPath(issue.id)}
-                onClick={() => rememberReaderSource(issue.id, 'shelf')}
-                className="inline-flex min-h-12 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-flame-600 px-1 py-3 text-[clamp(0.7rem,3vw,0.875rem)] font-semibold text-white shadow-[0_9px_19px_rgba(145,69,25,0.18)] transition-colors hover:bg-flame-700 sm:gap-2 sm:px-6 sm:text-base"
-              >
-                <BookOpen className="h-5 w-5" />
-                Read issue
-                <ArrowRight className="hidden h-4 w-4 sm:block" />
-              </Link>
-              <button ref={previewButtonRef} type="button" onClick={() => changePreview(true)} className="inline-flex min-h-12 min-w-0 items-center justify-center whitespace-nowrap rounded-lg border border-gold-300 bg-white px-1 py-3 text-[clamp(0.7rem,3vw,0.875rem)] font-semibold text-[#70451e] transition-colors hover:bg-gold-50 sm:px-5 sm:text-sm">
-                Preview pages
-              </button>
-              <button
-                type="button"
-                onClick={() => toggle(issue.id)}
-                aria-label={bookmarked ? 'Remove bookmark' : 'Save to bookmarks'}
-                aria-pressed={bookmarked}
-                className="flex h-12 w-12 items-center justify-center rounded-lg border border-gold-300 bg-white text-[#70451e] transition-colors hover:bg-gold-50"
-              >
-                <Heart className={`h-5 w-5 ${bookmarked ? 'fill-flame-600 text-flame-600' : ''}`} />
-              </button>
-            </div>
-            {(sortedTopics.length > 0 || issue.page_count) && (
-              <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-[#eadfce] pt-4 text-xs text-gray-700">
-                {issue.page_count ? <span>{issue.page_count} pages</span> : null}
-                {issue.file_size_bytes ? <span>{formatFileSize(issue.file_size_bytes)}</span> : null}
-                {sortedTopics.length > 0 && <span className="hidden h-1 w-1 rounded-full bg-gold-500 sm:block" aria-hidden="true" />}
-                {sortedTopics.map((topic) => <span key={topic}>{topic}</span>)}
-              </div>
-            )}
-          </div>
-        </div>
-      </motion.div> : <motion.div key="preview" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -10 }} transition={{ duration: 0.24 }} onAnimationComplete={() => { if (previewOpen) backButtonRef.current?.focus(); }}>
+      {!previewOpen ? <>
+        <MobileScenicHero
+          issue={issue}
+          eyebrow={eyebrow}
+          monthName={monthName}
+          bookmarked={bookmarked}
+          onBookmark={() => toggle(issue.id)}
+          onPreview={() => changePreview(true)}
+          onBookOpen={openBook}
+          animateEntrance={animateEntrance}
+          backgroundSrc={issue.hero?.mobileUrl ?? undefined}
+          theme={issue.hero?.mobileTheme ?? issue.hero?.desktopTheme}
+          coverPalette={coverPalette}
+          onCoverLoad={onCoverLoad}
+          onReady={() => {
+            onHeroReady();
+          }}
+        />
+        <DesktopScenicHero
+          issue={issue}
+          eyebrow={eyebrow}
+          monthName={monthName}
+          sortedTopics={sortedTopics}
+          bookmarked={bookmarked}
+          onBookmark={() => toggle(issue.id)}
+          onPreview={() => changePreview(true)}
+          onBookOpen={openBook}
+          animateEntrance={animateEntrance}
+          backgroundSrc={issue.hero?.desktopUrl}
+          theme={issue.hero?.desktopTheme}
+          coverPalette={coverPalette}
+          onCoverLoad={onCoverLoad}
+          onReady={() => {
+            onHeroReady();
+          }}
+        />
+      </> : <motion.div key="preview" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -10 }} transition={{ duration: 0.24 }} onAnimationComplete={() => { if (previewOpen) backButtonRef.current?.focus(); }}>
         <div className="flex items-center gap-2 border-b border-[#eadfce] px-4 py-3 sm:gap-4 sm:px-8">
           <button ref={backButtonRef} type="button" onClick={() => changePreview(false)} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gold-50 hover:text-gray-900">
             <ArrowLeft className="h-4 w-4" /> Back
@@ -688,11 +820,218 @@ function FeaturedSlide({ issue }: { issue: ApiIssue }) {
           </button>
         </div>
         <div id={`preview-${issue.id}`}>
-          <SlideReader issueId={issue.id} pdfUrl={issue.pdf_url} fallbackCoverUrl={issue.cover_image_url} fallbackTitle={issue.title} magazineName={issue.magazines.name} monthName={monthName} year={issue.year} language={language} />
+          <SlideReader issueId={issue.id} pdfUrl={issue.pdf_url!} fallbackCoverUrl={issue.cover_image_url} fallbackTitle={issue.title} magazineName={issue.magazines.name} monthName={monthName} year={issue.year} language={language} />
         </div>
       </motion.div>}
       </AnimatePresence>
     </article>
+  );
+}
+
+function ScenicBookCover({issue,sizes,phone=false,onCoverLoad}:{issue:ApiIssue;sizes:string;phone?:boolean;onCoverLoad:()=>void}) {
+  const [loaded,setLoaded]=useState(false);
+  const [failed,setFailed]=useState(false);
+  const [hydrated,setHydrated]=useState(false);
+  const coverRef=useRef<HTMLSpanElement>(null);
+  const reduceMotion=useReducedMotion();
+  useEffect(()=>{
+    const image=coverRef.current?.querySelector('img');
+    if(image?.complete&&image.naturalWidth>0){setLoaded(true);onCoverLoad();}
+    else if(image?.complete){setFailed(true);}
+    else setHydrated(true);
+  },[onCoverLoad]);
+  const waiting=hydrated&&!loaded;
+  return <span ref={coverRef} className="scenic-book-cover">
+    {issue.cover_image_url&&!failed?<>
+      <Image src={issue.cover_image_url} alt={issue.title} fill priority sizes={sizes} className={cn('object-cover transition-opacity duration-300 ease-out motion-reduce:transition-none',waiting?'opacity-0':'opacity-100')} onLoad={()=>{setLoaded(true);onCoverLoad();}} onError={()=>setFailed(true)}/>
+      <AnimatePresence initial={false}>{waiting&&<motion.span aria-hidden="true" className="archive-skeleton-wave absolute inset-0 z-[2] bg-[#eadcc1]" exit={{opacity:0}} transition={{duration:reduceMotion?0:0.3}}/>}</AnimatePresence>
+    </>:<span className={phone?'flex h-full items-center justify-center bg-white/90 p-5 text-center font-heading text-lg':'flex h-full items-center justify-center bg-[#f7efe0] px-6 text-center font-heading text-xl text-[#163e61]'}>{issue.title}</span>}
+    <span className="scenic-book-sheen" aria-hidden="true" />
+  </span>;
+}
+
+function MobileScenicHero({ issue, eyebrow, monthName, bookmarked, onBookmark, onPreview, onBookOpen, animateEntrance, onReady, backgroundSrc, theme, coverPalette, onCoverLoad }: {
+  issue: ApiIssue; eyebrow: string; monthName: string; bookmarked: boolean; onBookmark: () => void; onPreview: () => void; onBookOpen:()=>void; animateEntrance: boolean; onReady: () => void; backgroundSrc?: string; theme?:HeroSceneTheme|null; coverPalette: CoverPalette; onCoverLoad:()=>void;
+}) {
+  const animateOnMount=useRef(animateEntrance).current;
+  const [sceneReady,setSceneReady]=useState(!animateEntrance);
+  const [previewPlacement,setPreviewPlacement]=useState<HeroPlacement|null>(null);
+  useEffect(()=>{const receive=(event:MessageEvent)=>{if(event.origin!==window.location.origin||event.data?.type!=='hero-placement-preview'||event.data.device!=='phone')return;setPreviewPlacement(event.data.placement??null);};window.addEventListener('message',receive);return()=>window.removeEventListener('message',receive);},[]);
+  const placement=previewPlacement??resolveHeroPlacement(theme??undefined,'phone');
+  const issueColours=heroColours(coverPalette,theme);
+  const sceneVariables={
+    '--hero-focal-x-phone':`${placement.focalX}%`,'--hero-focal-y-phone':`${placement.focalY}%`,
+    '--hero-focal-x-phone-negative':`${-placement.focalX}%`,'--hero-focal-y-phone-negative':`${-placement.focalY}%`,
+  } as React.CSSProperties;
+  return <div data-hero-swipe className="bg-white md:hidden">
+    <div style={sceneVariables} className="scenic-phone-scene relative h-[720px] overflow-hidden">
+      <div className={cn('scenic-artboard scenic-artboard-phone',animateOnMount&&sceneReady&&'scenic-artboard-enter')}>
+        <ScenicBackground src={backgroundSrc ?? aimOctoberPhoneHero} media="(max-width: 767px)" sizes="100vw" className="object-cover" onReady={()=>{setSceneReady(true);onReady();}} />
+        <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-transparent to-transparent" aria-hidden="true" />
+        <div className="absolute inset-x-0 bottom-0 h-[24%] bg-gradient-to-b from-transparent via-white/65 to-white" aria-hidden="true" />
+        <button type="button" onClick={onBookOpen} disabled={!issue.pdf_url} aria-label={issue.pdf_url?`Read ${issue.title}`:`${issue.title} is not yet readable`} style={{left:`${placement.bookX}%`,bottom:`${100-placement.baselineY}%`,width:`${52*placement.bookScale/100}%`,transform:'translateX(-50%)'}} className="scenic-book-stage absolute z-[3] aspect-[2/3] disabled:cursor-not-allowed">
+          <span className="scenic-book-shadow" aria-hidden="true" />
+          <span className="scenic-book block h-full w-full" style={{ '--book-spine-color': coverPalette.dominant, '--book-spine-foreground': coverPalette.foreground } as React.CSSProperties}>
+            <span className="scenic-book-pages" aria-hidden="true" />
+            <span className="scenic-book-spine" aria-hidden="true">
+              <span className="scenic-book-spine-title">{issue.magazines.name}</span>
+              <span className="scenic-book-spine-date">{monthName} {issue.year}</span>
+              <span className="scenic-book-spine-publisher">Sri Aurobindo Society</span>
+            </span>
+            <ScenicBookCover issue={issue} sizes="270px" phone onCoverLoad={onCoverLoad}/>
+          </span>
+        </button>
+      </div>
+    </div>
+    <div className="bg-white px-7 py-6">
+      <p className="text-[10px] font-semibold uppercase tracking-[.18em] transition-colors duration-300" style={{color:issueColours.body}}>{eyebrow}</p>
+      <h1 className="mt-2 font-heading text-[clamp(1.9rem,9vw,3rem)] leading-none transition-colors duration-300" style={{color:issueColours.heading}}>{issue.theme || issue.title}</h1>
+      {issue.description && <p className="mt-3 line-clamp-2 text-sm leading-6 transition-colors duration-300" style={{color:issueColours.body}}>{issue.description}</p>}
+      <div className="mt-4 flex gap-2">
+        {issue.pdf_url?<Link href={readerPath(issue.id)} onClick={() => rememberReaderSource(issue.id,'shelf')} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white transition-colors duration-300" style={{background:issueColours.button,color:issueColours.buttonForeground}}><BookOpen className="h-4 w-4"/>Read issue</Link>:<span className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white transition-colors duration-300" style={{background:issueColours.button,color:issueColours.buttonForeground}}><BookOpen className="h-4 w-4"/>Embargoed</span>}
+        <button type="button" onClick={onPreview} disabled={!issue.pdf_url} aria-label="Preview pages" className="flex h-11 w-11 items-center justify-center rounded-xl border bg-white/80 transition-colors duration-300 disabled:cursor-not-allowed disabled:opacity-50" style={{color:issueColours.heading,borderColor:issueColours.body}}><FileText className="h-5 w-5"/></button>
+        <button type="button" onClick={onBookmark} aria-label={bookmarked?'Remove bookmark':'Save to bookmarks'} className="flex h-11 w-11 items-center justify-center rounded-xl border bg-white/80 transition-colors duration-300" style={{color:issueColours.heading,borderColor:issueColours.body}}><Heart className={cn('h-5 w-5',bookmarked&&'fill-[#d97735] text-[#d97735]')}/></button>
+      </div>
+    </div>
+  </div>;
+}
+
+export type HeroSceneTheme = HeroPresentationTheme;
+
+export function resolveHeroPlacement(theme:HeroSceneTheme|undefined,device:keyof typeof HERO_PLACEMENT_DEFAULTS):HeroPlacement {
+  return resolvePlacement(theme?.layout,device);
+}
+
+export function DesktopScenicHero({
+  issue,
+  eyebrow,
+  monthName,
+  sortedTopics,
+  bookmarked,
+  onBookmark,
+  onPreview,
+  onBookOpen,
+  animateEntrance,
+  onReady,
+  backgroundSrc = '/aim-oct-2026-hero.png',
+  theme = {},
+  compact = false,
+  coverPalette = DEFAULT_COVER_PALETTE,
+  onCoverLoad = () => {},
+}: {
+  issue: ApiIssue;
+  eyebrow: string;
+  monthName: string;
+  sortedTopics: string[];
+  bookmarked: boolean;
+  onBookmark: () => void;
+  onPreview: () => void;
+  onBookOpen:()=>void;
+  animateEntrance: boolean;
+  onReady: () => void;
+  backgroundSrc?: string;
+  theme?: HeroSceneTheme;
+  compact?: boolean;
+  coverPalette?: CoverPalette;
+  onCoverLoad?:()=>void;
+}) {
+  const bookRef = useRef<HTMLButtonElement>(null);
+  const animateOnMount=useRef(animateEntrance).current;
+  const [backgroundReady, setBackgroundReady] = useState(!animateEntrance);
+  const [previewPlacements,setPreviewPlacements]=useState<Partial<Record<'desktop'|'tablet',HeroPlacement>>>({});
+  useEffect(()=>{const receive=(event:MessageEvent)=>{if(event.origin!==window.location.origin||event.data?.type!=='hero-placement-preview'||!['desktop','tablet'].includes(event.data.device))return;setPreviewPlacements(current=>({...current,[event.data.device]:event.data.placement??undefined}));};window.addEventListener('message',receive);return()=>window.removeEventListener('message',receive);},[]);
+  const desktopPlacement=previewPlacements.desktop??resolveHeroPlacement(theme,'desktop');
+  const tabletPlacement=previewPlacements.tablet??resolveHeroPlacement(theme,'tablet');
+  const issueColours=heroColours(coverPalette,theme);
+  const sceneVariables={
+    '--hero-focal-x-desktop':`${desktopPlacement.focalX}%`,'--hero-focal-y-desktop':`${desktopPlacement.focalY}%`,
+    '--hero-focal-x-desktop-negative':`${-desktopPlacement.focalX}%`,'--hero-focal-y-desktop-negative':`${-desktopPlacement.focalY}%`,
+    '--hero-focal-x-tablet':`${tabletPlacement.focalX}%`,'--hero-focal-y-tablet':`${tabletPlacement.focalY}%`,
+    '--hero-focal-x-tablet-negative':`${-tabletPlacement.focalX}%`,'--hero-focal-y-tablet-negative':`${-tabletPlacement.focalY}%`,
+    '--book-x-desktop':`${desktopPlacement.bookX}%`,'--book-baseline-desktop':`${desktopPlacement.baselineY}%`,'--book-scale-desktop':desktopPlacement.bookScale/100,
+    '--book-x-tablet':`${tabletPlacement.bookX}%`,'--book-baseline-tablet':`${tabletPlacement.baselineY}%`,'--book-scale-tablet':tabletPlacement.bookScale/100,
+  } as React.CSSProperties;
+
+  function moveBook(event: React.PointerEvent<HTMLButtonElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / rect.width - 0.5;
+    const y = (event.clientY - rect.top) / rect.height - 0.5;
+    bookRef.current?.style.setProperty('--book-rotate-y', `${-7 + x * 14}deg`);
+    bookRef.current?.style.setProperty('--book-rotate-x', `${2 - y * 8}deg`);
+  }
+
+  function resetBook() {
+    bookRef.current?.style.removeProperty('--book-rotate-y');
+    bookRef.current?.style.removeProperty('--book-rotate-x');
+  }
+
+  return (
+    <div data-hero-swipe style={sceneVariables} className={cn('scenic-hero relative hidden overflow-hidden md:block', compact ? 'min-h-[480px]' : 'min-h-[720px]')}>
+      <div className={cn('scenic-artboard scenic-artboard-landscape',animateOnMount&&backgroundReady&&'scenic-artboard-enter')}>
+        <ScenicBackground
+          src={backgroundSrc}
+          media="(min-width: 768px)"
+          sizes="(min-width: 1024px) 1440px, 100vw"
+          className="scenic-hero-background object-cover"
+          onReady={() => {
+            setBackgroundReady(true);
+            onReady();
+          }}
+        />
+        <div className="scenic-hero-light absolute inset-0" style={theme.scrim ? { background: theme.scrim } : undefined} aria-hidden="true" />
+        <button
+          ref={bookRef}
+          type="button"
+          onClick={onBookOpen}
+          disabled={!issue.pdf_url}
+          onPointerMove={moveBook}
+          onPointerLeave={resetBook}
+          aria-label={issue.pdf_url?`Read ${issue.title}`:`${issue.title} is not yet readable`}
+          className="scenic-book-stage scenic-book-stage-positioned focus-visible:outline-none disabled:cursor-not-allowed"
+        >
+          <span className="scenic-book-shadow" aria-hidden="true" />
+          <span className="scenic-book block h-full w-full" style={{ '--book-spine-color': coverPalette.dominant, '--book-spine-foreground': coverPalette.foreground } as React.CSSProperties}>
+            <span className="scenic-book-pages" aria-hidden="true" />
+            <span className="scenic-book-spine" aria-hidden="true">
+              <span className="scenic-book-spine-title">{issue.magazines.name}</span>
+              <span className="scenic-book-spine-date">{monthName} {issue.year}</span>
+              <span className="scenic-book-spine-publisher">Sri Aurobindo Society</span>
+            </span>
+            <ScenicBookCover issue={issue} sizes="310px" onCoverLoad={onCoverLoad}/>
+          </span>
+        </button>
+      </div>
+
+      <div className="scenic-hero-copy absolute bottom-[12.5%] left-[49.5%] top-[13%] flex w-[45%] flex-col justify-center text-[#153f63]" style={{ color: theme.text }}>
+        <p className="max-w-full text-[0.76rem] font-semibold uppercase tracking-[0.27em] transition-colors duration-300" style={{ color: issueColours.body }}>{eyebrow}</p>
+        <h1 className={cn('mt-5 max-w-[13ch] font-heading leading-[1.03] tracking-[-0.025em] transition-colors duration-300', compact ? 'text-[clamp(2.25rem,4vw,4rem)]' : 'text-[clamp(2.7rem,4.6vw,5rem)]')} style={{ color: issueColours.heading }}>
+          {issue.theme || issue.title}
+        </h1>
+        {issue.description && (
+          <p className="mt-5 line-clamp-3 max-w-[59ch] text-[clamp(0.95rem,1.15vw,1.15rem)] leading-[1.75] transition-colors duration-300" style={{ color: issueColours.body }}>{issue.description}</p>
+        )}
+
+        <div className="mt-8 flex items-center gap-3">
+          {issue.pdf_url?<Link href={readerPath(issue.id)} onClick={() => rememberReaderSource(issue.id, 'shelf')} className="scenic-primary-action inline-flex min-h-12 items-center gap-3 rounded-xl px-7 py-3 text-base font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#123e62]" style={{ background: issueColours.button, color: issueColours.buttonForeground }}>
+            <BookOpen className="h-5 w-5" /> Read issue <ArrowRight className="h-4 w-4" />
+          </Link>:<span className="inline-flex min-h-12 items-center gap-3 rounded-xl px-7 py-3 text-base font-semibold text-white transition-colors duration-300" style={{background:issueColours.button,color:issueColours.buttonForeground}}><BookOpen className="h-5 w-5"/>Embargoed</span>}
+          <button type="button" onClick={onPreview} disabled={!issue.pdf_url} style={{color:issueColours.heading,borderColor:issueColours.body}} className="scenic-secondary-action inline-flex min-h-12 items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#123e62] disabled:cursor-not-allowed disabled:opacity-50">
+            <FileText className="h-5 w-5" /> Preview pages
+          </button>
+          <button type="button" onClick={onBookmark} style={{color:issueColours.heading,borderColor:issueColours.body}} aria-label={bookmarked ? 'Remove bookmark' : 'Save to bookmarks'} aria-pressed={bookmarked} className="scenic-secondary-action flex h-12 w-12 items-center justify-center rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#123e62]">
+            <Heart className={cn('h-5 w-5', bookmarked && 'fill-[#d97735] text-[#d97735]')} />
+          </button>
+        </div>
+
+        {(issue.file_size_bytes || issue.page_count || sortedTopics.length > 0) && (
+          <div style={{color:issueColours.body}} className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs transition-colors duration-300">
+            {issue.file_size_bytes ? <span>{formatFileSize(issue.file_size_bytes)}</span> : null}
+            {issue.page_count ? <span>{issue.page_count} pages</span> : null}
+            {sortedTopics.map((topic) => <span key={topic}>{topic}</span>)}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

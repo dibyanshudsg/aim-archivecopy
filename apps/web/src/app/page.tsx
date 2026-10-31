@@ -6,12 +6,16 @@ import {
   listLatestEmbargoedIssues,
   listMagazines,
   getPublicIssueById,
+  readHeroPresentation,
+  listReleasedReadyHeroIssueIds,
+  readGlobalHeroPlacements,
 } from '@/lib/db';
 import type { ApiIssue, ApiMagazine } from '@/lib/api';
 import type { ShelfIssue } from '@/lib/home-shelf';
 import { HomeClient } from './home-client';
 import { readableCutoffIssueMonth } from '@/lib/embargo';
-import { getHeroSchedule } from '@/lib/hero-issues';
+import { getHeroScheduleAndCatalogue } from '@/lib/hero-issues';
+import type { HeroPickerIssue } from '@/lib/hero-picker-issue';
 import { unstable_cache } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
@@ -34,6 +38,7 @@ async function fetchLatestSubscriberEditions(): Promise<ApiIssue[]> {
 interface CarouselData {
   magazines: ApiMagazine[];
   issues: ApiIssue[];
+  pickerIssues: HeroPickerIssue[];
 }
 
 /**
@@ -41,13 +46,23 @@ interface CarouselData {
  * the India-time release gate, persistent hides and optional manual selection.
  */
 async function fetchCarouselData(): Promise<CarouselData> {
-  const [magazines, schedule] = await Promise.all([
+  const [magazines, heroCatalogue, placements] = await Promise.all([
     listMagazines({ orderBy: 'created_at' }),
-    getHeroSchedule(),
+    getHeroScheduleAndCatalogue(),
+    readGlobalHeroPlacements(),
   ]);
-  const ids = schedule.map((item) => item.live?.id).filter((id): id is string => Boolean(id));
-  const issues = (await Promise.all(ids.map((id) => getPublicIssueById(id)))).filter((issue): issue is ApiIssue => issue !== null);
-  return { magazines, issues };
+  const { schedule, catalogue: pickerIssues } = heroCatalogue;
+  const scheduledIds = schedule.map((item) => item.live?.id).filter((id): id is string => Boolean(id));
+  const preparedIds=await listReleasedReadyHeroIssueIds();
+  const ids=[...new Set([...scheduledIds,...preparedIds])];
+  const issues = (await Promise.all(ids.map(async (id):Promise<ApiIssue|null> => {
+    const [issue,presentation]=await Promise.all([getPublicIssueById(id),readHeroPresentation(id)]);
+    if(!issue)return null;
+    const heroIssue={...issue,cover_image_url:issue.cover_image_url&&issue.updated_at?`${issue.cover_image_url}?v=${encodeURIComponent(issue.updated_at)}`:issue.cover_image_url};
+    if(!presentation.desktop)return {...heroIssue,hero:{desktopUrl:'/aim-oct-2026-hero.png',mobileUrl:null,desktopTheme:{layout:placements},mobileTheme:{layout:placements}}};
+    return {...heroIssue,hero:{desktopUrl:`/api/hero-assets/${id}/desktop`,mobileUrl:presentation.mobile?`/api/hero-assets/${id}/mobile`:null,desktopTheme:{...JSON.parse(presentation.desktop.theme),layout:placements},mobileTheme:presentation.mobile?{...JSON.parse(presentation.mobile.theme),layout:placements}:null}};
+  }))).filter((issue): issue is ApiIssue => issue !== null);
+  return { magazines, issues, pickerIssues };
 }
 
 export default async function HomePage() {
@@ -68,6 +83,7 @@ export default async function HomePage() {
       latestSubscriberEditions={latestSubscriberEditions}
       carouselMagazines={carousel.magazines}
       carouselIssues={carousel.issues}
+      pickerIssues={carousel.pickerIssues}
       navigation={navigation}
       collection={collection}
     />

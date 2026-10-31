@@ -3,7 +3,7 @@ import { Header } from '@/components/layout/header';
 export function HomeLoading() {
   return (
     <div className="flex min-h-screen flex-col bg-white">
-      <Header />
+      <Header autoHideOnHome />
       <main role="status" aria-live="polite" aria-busy="true" aria-label="Loading home page" className="flex-1 bg-gradient-to-b from-[#fffaf1] via-[#fffdf8] to-white px-4 pb-12 pt-5 sm:px-6 sm:pt-9 lg:px-8">
         <div className="mx-auto max-w-[1440px] overflow-hidden rounded-2xl bg-[#fffdf9] shadow-[0_18px_48px_rgba(83,58,22,0.13)]">
           <div className="grid md:grid-cols-[minmax(280px,0.76fr)_minmax(0,1fr)]">

@@ -20,8 +20,11 @@ for (const [id,magazine,year,month,published] of [
   ['aim-oct','aim',2026,10,1],['aim-sep','aim',2026,9,1],['aim-nov','aim',2026,11,1],
   ['aim-archive','aim',2021,10,1],['aim-nov-archive','aim',2021,11,1],['aim-nov-previous','aim',2025,11,1],
   ['aim-older','aim',2020,10,1],['hindi-archive','hindi',2021,10,1],
+  ['aim-draft','aim',2026,8,0],
 ]) db.prepare('INSERT INTO issues(id,magazine_id,title,year,month,is_published,pdf_url,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)')
   .run(id,magazine,id,year,month,published,`https://assets.example.test/${id}.pdf`,stamp,stamp);
+db.prepare('INSERT INTO issues(id,magazine_id,title,year,month,is_published,pdf_url,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)')
+  .run('aim-unsupported','aim','Unsupported',2026,7,1,'https://other.example.test/issue.pdf',stamp,stamp);
 require('../apps/web/src/lib/db/client.ts').getDb = () => ({
   execute: async (statement) => {
     const { sql, args = [] } = typeof statement === 'string' ? { sql: statement } : statement;
@@ -29,10 +32,15 @@ require('../apps/web/src/lib/db/client.ts').getDb = () => ({
     return { rows: new LibsqlRows(...db.prepare(sql).all(...args)) };
   },
 });
-const { getHeroSchedule, updateHeroSetting, getLiveHeroIssueIds } = require('../apps/web/src/lib/hero-issues.ts');
+const { getHeroSchedule, getHeroScheduleAndCatalogue, updateHeroSetting, getLiveHeroIssueIds } = require('../apps/web/src/lib/hero-issues.ts');
 const { isIssueMonthReleased } = require('../apps/web/src/lib/embargo.ts');
 (async () => {
   let schedule = await getHeroSchedule();
+  const { catalogue } = await getHeroScheduleAndCatalogue();
+  assert.equal(catalogue.some(issue => issue.id === 'aim-nov' || issue.id === 'aim-draft' || issue.id === 'aim-unsupported'),false,'picker excludes future, draft and unsupported issues');
+  assert.equal(catalogue.find(issue => issue.id === 'aim-oct').readable,true,'live hero remains readable');
+  assert.equal(catalogue.find(issue => issue.id === 'aim-sep').readable,false,'other embargoed issues stay locked');
+  assert.equal(catalogue.some(issue => 'pdf_url' in issue),false,'picker never exposes PDF asset URLs');
   assert.equal(Object.getPrototypeOf(schedule), Array.prototype, 'hero schedule must cross the React server/client boundary as a plain array');
   assert.equal(Object.getPrototypeOf(schedule[0].hidden), Array.prototype);
   assert.equal(schedule.find(m => m.id === 'aim').live.id,'aim-oct');

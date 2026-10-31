@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { BookMarked } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
-import { AnimatedBookshelf } from '@/components/home/animated-bookshelf';
 import { LatestSubscriberEditions } from '@/components/home/latest-subscriber-editions';
 import { Flame } from '@/components/home/flame';
 
@@ -22,6 +22,12 @@ import {
 import { readerPath, rememberDirectResume, rememberReaderSource } from '@/lib/reader-url';
 import { formatMonthYear } from '@/lib/utils';
 import type { PublicNavigation } from '@/lib/navigation';
+
+const AnimatedBookshelf = dynamic(() =>
+  import('@/components/home/animated-bookshelf').then((module) => module.AnimatedBookshelf),
+);
+import type { HeroPickerIssue } from '@/lib/hero-picker-issue';
+
 
 // Slide-up entrance — no opacity gate. Opacity transitions block LCP measurement
 // (the element isn't "contentful" while opacity:0), so we keep the element fully
@@ -50,6 +56,7 @@ interface HomeClientProps {
   latestSubscriberEditions: ApiIssue[];
   carouselMagazines: ApiMagazine[];
   carouselIssues: ApiIssue[];
+  pickerIssues: HeroPickerIssue[];
   navigation: PublicNavigation;
   collection: { listed: number; readable: number; languages: string[] };
 }
@@ -168,18 +175,20 @@ export function HomeClient({
   latestSubscriberEditions,
   carouselMagazines,
   carouselIssues,
+  pickerIssues,
   navigation,
   collection,
 }: HomeClientProps) {
   return (
     <div className="flex min-h-screen flex-col">
-      <Header navigation={navigation} />
+      <Header navigation={navigation} autoHideOnHome />
 
       <main className="flex-1">
-        <section className="relative overflow-hidden bg-gradient-to-b from-[#fffaf1] via-[#fffdf8] to-white px-4 pb-12 pt-5 sm:px-6 sm:pb-20 sm:pt-9 lg:px-8">
+        <section className="relative overflow-hidden bg-gradient-to-b from-[#fffaf1] via-[#fffdf8] to-white px-4 pb-12 pt-5 sm:px-6 sm:pb-20 sm:pt-9 lg:px-0 lg:pt-0">
           <ThisMonthFeatured
             magazines={carouselMagazines}
             issues={carouselIssues}
+            archiveIssues={pickerIssues}
           />
 
           <section className="mx-auto mt-8 w-full max-w-[1440px] border-y border-gold-200/70 px-2 py-6 sm:mt-16 sm:px-6 sm:py-10 lg:px-10" aria-labelledby="archive-intro-title">

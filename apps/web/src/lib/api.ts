@@ -1,4 +1,5 @@
 import { AsyncTtlCache } from './ttl-cache';
+import type { HeroDevice, HeroPlacement } from './hero-placement';
 
 // Use relative URLs so API calls always hit the same origin (no CORS issues)
 const BASE_URL = '';
@@ -42,6 +43,22 @@ export interface ApiIssue {
     description: string;
     cover_image_url: string | null;
   };
+  hero?: {
+    desktopUrl: string;
+    mobileUrl: string | null;
+    desktopTheme: HeroPresentationTheme;
+    mobileTheme: HeroPresentationTheme | null;
+  };
+}
+
+export interface HeroPresentationTheme {
+  text?: string;
+  mutedText?: string;
+  accent?: string;
+  primaryBackground?: string;
+  primaryForeground?: string;
+  scrim?: string;
+  layout?: Partial<Record<HeroDevice, Partial<HeroPlacement>>>;
 }
 
 export interface ApiMagazine {

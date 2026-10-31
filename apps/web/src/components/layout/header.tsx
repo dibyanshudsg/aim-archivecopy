@@ -25,12 +25,18 @@ export function Header({
   navigation,
   contextualControls,
   contextualControlsVisible = false,
+  autoHideOnHome = false,
 }: {
   navigation?: PublicNavigation;
   contextualControls?: React.ReactNode;
   contextualControlsVisible?: boolean;
+  autoHideOnHome?: boolean;
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mobileMenuOpenRef=useRef(false);
+  const [scrollHeaderVisible,setScrollHeaderVisible]=useState(!autoHideOnHome);
+  const lastScrollY=useRef(0);
+  const scrollFrame=useRef<number|null>(null);
   const reduceMotion = useReducedMotion();
   const router = useRouter();
   const bookmarkedIds = useBookmarks((s) => s.bookmarkedIds);
@@ -43,6 +49,27 @@ export function Header({
   const publicNavigation = useMemo(() => navigation ?? defaultPublicNavigation(), [navigation]);
   const headerLinks = publicNavigation.menus.header.items;
   const mobileLinks = publicNavigation.menus.mobile.items.length > 0 ? publicNavigation.menus.mobile.items : headerLinks;
+
+  useEffect(()=>{mobileMenuOpenRef.current=mobileMenuOpen;},[mobileMenuOpen]);
+
+  useEffect(()=>{
+    if(!autoHideOnHome){setScrollHeaderVisible(true);return;}
+    lastScrollY.current=window.scrollY;
+    setScrollHeaderVisible(false);
+    const handleScroll=()=>{
+      if(scrollFrame.current!==null)return;
+      scrollFrame.current=window.requestAnimationFrame(()=>{
+        const current=window.scrollY;
+        const delta=current-lastScrollY.current;
+        if(delta<-3)setScrollHeaderVisible(true);
+        else if(delta>3){setScrollHeaderVisible(false);if(mobileMenuOpenRef.current)setMobileMenuOpen(false);}
+        lastScrollY.current=current;
+        scrollFrame.current=null;
+      });
+    };
+    window.addEventListener('scroll',handleScroll,{passive:true});
+    return()=>{window.removeEventListener('scroll',handleScroll);if(scrollFrame.current!==null)window.cancelAnimationFrame(scrollFrame.current);scrollFrame.current=null;};
+  },[autoHideOnHome]);
 
   /* Click-outside + Escape — closes the mobile menu when the user taps any
      content below the header or hits Esc on a hardware keyboard. The header
@@ -108,7 +135,13 @@ export function Header({
     <header
       ref={headerRef}
       data-site-header
-      className="relative sticky top-0 z-50 border-b border-flame-100 bg-white shadow-sm"
+      onFocusCapture={()=>{if(autoHideOnHome)setScrollHeaderVisible(true);}}
+      className={cn(
+        'top-0 z-50 border-b border-flame-100 bg-white shadow-sm',
+        autoHideOnHome
+          ? cn('fixed inset-x-0 transform-gpu transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:duration-150',scrollHeaderVisible?'translate-y-0':'pointer-events-none -translate-y-full')
+          : 'relative sticky',
+      )}
     >
       <nav
         className={cn(
@@ -310,7 +343,7 @@ export function Header({
                       ? 'h-11 w-11 rounded-xl border border-flame-200 bg-white text-flame-700 shadow-sm hover:border-flame-300 hover:bg-flame-50 focus-visible:ring-2 focus-visible:ring-flame-300 focus-visible:ring-offset-2'
                       : 'h-11 w-11 rounded-lg text-gray-600',
                   )}
-                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  onClick={() => {const next=!mobileMenuOpen;setMobileMenuOpen(next);if(next&&autoHideOnHome)setScrollHeaderVisible(true);}}
                   aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
                   aria-expanded={mobileMenuOpen}
                 >

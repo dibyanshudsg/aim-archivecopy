@@ -13,7 +13,7 @@ const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
   "object-src 'none'",
-  "frame-ancestors 'none'",
+  "frame-ancestors 'self'",
   "form-action 'self'",
   `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
   "style-src 'self' 'unsafe-inline'",
@@ -21,7 +21,7 @@ const contentSecurityPolicy = [
   "font-src 'self' data:",
   "connect-src 'self' https://*.r2.cloudflarestorage.com",
   "worker-src 'self' blob:",
-  "frame-src 'none'",
+  "frame-src 'self'",
 ].join('; ');
 
 const nextConfig: NextConfig = {
@@ -39,7 +39,7 @@ const nextConfig: NextConfig = {
         source: '/:path*',
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
           { key: 'Content-Security-Policy', value: contentSecurityPolicy },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
         ],
@@ -57,7 +57,14 @@ const nextConfig: NextConfig = {
   },
   images: {
     // Authenticated/catalogue cover routes must never enter the shared optimizer cache.
-    localPatterns: [{ pathname: '/logo.png' }, { pathname: '/icon.png' }, { pathname: '/_next/static/media/**' }],
+    localPatterns: [
+      { pathname: '/logo.png' },
+      { pathname: '/icon.png' },
+      { pathname: '/aim-oct-2026-hero.png' },
+      { pathname: '/api/admin/hero-assets/**' },
+      { pathname: '/api/hero-assets/**' },
+      { pathname: '/_next/static/media/**' },
+    ],
     remotePatterns: [
       ...(process.env.R2_PUBLIC_BASE_URL ? [{
         protocol: 'https' as const,
