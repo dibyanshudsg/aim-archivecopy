@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Image from '@/components/magazine/archive-image';
+import { ViewportCoverImage } from '@/components/magazine/viewport-cover-image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowDownAZ,
   BookOpen,
   CalendarDays,
+  Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -54,7 +57,7 @@ const sortOptions = [
   { id: 'title', label: 'A-Z', shortLabel: 'A-Z', Icon: ArrowDownAZ },
 ] satisfies Array<{ id: SortMode; label: string; shortLabel: string; Icon: typeof Clock }>;
 const sortCopy = {
-  uploaded: { eyebrow: 'Recently added', heading: 'Now open in the archive' },
+  uploaded: { eyebrow: 'Recently added', heading: 'Available in Archive' },
   'issue-date': { eyebrow: 'Sorted by issue date', heading: 'Readable archive editions' },
   title: { eyebrow: 'Alphabetical view', heading: 'Open issue index' },
 } satisfies Record<SortMode, { eyebrow: string; heading: string }>;
@@ -406,7 +409,7 @@ function ClosedIssueCover({
       <BookSpine accent={accent} />
 
       {issue.cover_image_url ? (
-        <Image
+        <ViewportCoverImage
           src={issue.cover_image_url}
           alt={issue.title}
           fill
@@ -1118,11 +1121,23 @@ export function AnimatedBookshelf({ issues: suppliedIssues, years }: AnimatedBoo
   const [yearError, setYearError] = useState(false);
   const [yearRetry, setYearRetry] = useState(0);
   const [sortMode, setSortMode] = useState<SortMode>('uploaded');
+  const [sortOpen,setSortOpen]=useState(false);
+  const sortRef=useRef<HTMLDivElement>(null);
+  const sortTriggerRef=useRef<HTMLButtonElement>(null);
   const [magazineFilter, setMagazineFilter] = useState<MagazineFilter>(() =>
     suppliedIssues.find((issue) => issue.magazines.name.toLowerCase().includes('all india'))?.magazines.id ?? 'all',
   );
   const issuesPerRow = useIssuesPerRow();
   const activeCopy = sortCopy[sortMode];
+  const activeSort=sortOptions.find(option=>option.id===sortMode)!;
+  useEffect(()=>{
+    if(!sortOpen)return;
+    const close=(event:PointerEvent)=>{if(!sortRef.current?.contains(event.target as Node))setSortOpen(false);};
+    const escape=(event:KeyboardEvent)=>{if(event.key==='Escape'){setSortOpen(false);sortTriggerRef.current?.focus();}};
+    document.addEventListener('pointerdown',close);
+    document.addEventListener('keydown',escape);
+    return()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',escape);};
+  },[sortOpen]);
   const currentYear = new Date().getFullYear();
   const issueYears = useMemo(
     () => years.map((entry) => entry.year),
@@ -1244,7 +1259,7 @@ export function AnimatedBookshelf({ issues: suppliedIssues, years }: AnimatedBoo
               </p>
               {yearError && <button type="button" onClick={() => setYearRetry(value => value + 1)} className="min-h-11 px-3 text-sm font-semibold text-flame-800">Try again</button>}
             </div>
-            <div className="flex w-full flex-col items-center gap-2 justify-self-center lg:w-auto">
+            <div className="flex w-full flex-wrap items-center justify-center gap-2 justify-self-center lg:w-auto">
               {magazineOptions.length > 1 && (
                 <div className="inline-flex max-w-full rounded-full border border-flame-100 bg-white/95 p-1 shadow-[0_8px_24px_rgba(120,84,28,0.08)] ring-1 ring-white">
                   {magazineOptions.map((option) => {
@@ -1269,7 +1284,7 @@ export function AnimatedBookshelf({ issues: suppliedIssues, years }: AnimatedBoo
                             transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 430, damping: 34 }}
                           />
                         )}
-                        {option.label}
+                        {option.label==='All India Magazine'?<><span className="hidden sm:inline">All India Magazine</span><span className="sm:hidden">All India</span></>:option.label}
                       </button>
                     );
                   })}
@@ -1294,38 +1309,18 @@ export function AnimatedBookshelf({ issues: suppliedIssues, years }: AnimatedBoo
                   </button>
                 </div>
               )}
-              <div
-                className="inline-flex max-w-full rounded-full border border-flame-100 bg-white/95 p-1 shadow-[0_10px_30px_rgba(120,84,28,0.10)] ring-1 ring-white"
-                aria-label="Sort readable archive issues"
-              >
-                {sortOptions.map(({ id, label, shortLabel, Icon }) => {
-                  const active = sortMode === id;
-
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => setSortMode(id)}
-                      className={`relative isolate flex min-h-11 min-w-11 items-center gap-1.5 overflow-hidden rounded-full px-3 text-xs font-semibold transition-colors sm:px-3.5 ${
-                        active
-                          ? 'text-white'
-                          : 'text-gray-600 hover:bg-flame-50/80 hover:text-flame-800'
-                      }`}
-                    >
-                      {active && (
-                        <motion.span
-                          layoutId="bookshelf-sort-active"
-                          className="absolute inset-0 -z-10 rounded-full bg-gradient-to-r from-gold-500 to-flame-500 shadow-[0_6px_16px_rgba(190,140,46,0.28)]"
-                          transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 430, damping: 34 }}
-                        />
-                      )}
-                      <Icon className={`h-3.5 w-3.5 shrink-0 ${active ? 'text-white' : 'text-flame-700/75'}`} />
-                      <span className="hidden sm:inline">{label}</span>
-                      <span className="sm:hidden">{shortLabel}</span>
-                    </button>
-                  );
-                })}
+              <div ref={sortRef} className="relative shrink-0">
+                <button ref={sortTriggerRef} type="button" aria-label={`Sort issues: ${activeSort.label}`} aria-expanded={sortOpen} aria-controls={sortOpen?'archive-sort-options':undefined} onClick={()=>setSortOpen(open=>!open)} className={`inline-flex min-h-[52px] items-center gap-2 rounded-full border bg-white px-3 text-xs font-semibold text-flame-800 shadow-[0_8px_24px_rgba(120,84,28,0.08)] transition-colors hover:bg-flame-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-flame-300 ${sortOpen?'border-flame-300':'border-flame-100'}`}>
+                  <activeSort.Icon className="h-4 w-4 shrink-0 text-flame-600" aria-hidden="true"/>
+                  <span className="max-[360px]:hidden sm:hidden">{activeSort.shortLabel}</span>
+                  <span className="hidden sm:inline">{activeSort.label}</span>
+                  <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-flame-600 transition-transform ${sortOpen?'rotate-180':''}`} aria-hidden="true"/>
+                </button>
+                <AnimatePresence>
+                  {sortOpen&&<motion.div id="archive-sort-options" role="group" aria-label="Sort readable archive issues" initial={reduceMotion?false:{opacity:0,y:-6,scale:0.98}} animate={{opacity:1,y:0,scale:1}} exit={{opacity:0,y:-6,scale:0.98}} transition={{duration:reduceMotion?0:0.17,ease:'easeOut'}} className="absolute right-0 z-30 mt-2 w-52 overflow-hidden rounded-2xl border border-flame-100 bg-white p-1.5 shadow-[0_16px_40px_rgba(94,61,25,0.16)]">
+                    {sortOptions.map(({id,label,Icon})=><button key={id} type="button" aria-pressed={sortMode===id} onClick={()=>{setSortMode(id);setSortOpen(false);sortTriggerRef.current?.focus();}} className={`flex min-h-11 w-full items-center gap-2.5 rounded-xl px-3 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-flame-300 ${sortMode===id?'bg-flame-50 text-flame-800':'text-gray-700 hover:bg-flame-50/60'}`}><Icon className="h-4 w-4 shrink-0 text-flame-600" aria-hidden="true"/><span className="flex-1">{label}</span>{sortMode===id&&<Check className="h-4 w-4 text-flame-600" aria-hidden="true"/>}</button>)}
+                  </motion.div>}
+                </AnimatePresence>
               </div>
             </div>
             <Link

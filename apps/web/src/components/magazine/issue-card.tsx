@@ -1,14 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import Image from '@/components/magazine/archive-image';
+import { ViewportCoverImage } from '@/components/magazine/viewport-cover-image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { BookOpen, Check, Download, Heart, Lock, Share2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { IssueWithMagazine } from '@aim-archive/shared';
 import { LANGUAGE_NAMES } from '@aim-archive/shared';
-import { formatFileSize, formatMonthYear, cn } from '@/lib/utils';
+import { formatMonthYear, cn } from '@/lib/utils';
 import { useBookmarks } from '@/lib/bookmarks-store';
 import { useBulkSelection } from '@/lib/use-bulk-selection';
 import { shareIssue } from '@/lib/share-issue';
@@ -113,7 +113,7 @@ export function IssueCard({ issue, index = 0, source = 'browse' }: IssueCardProp
       <div className="pointer-events-none relative aspect-[3/4] bg-gradient-to-br from-gold-100 to-flame-50">
         <div className="absolute inset-y-0 left-0 z-10 w-1.5 bg-gradient-to-b from-gold-500 to-flame-500 shadow-[2px_0_10px_rgba(0,0,0,0.18)]" />
         {issue.coverImageUrl ? (
-          <Image
+          <ViewportCoverImage
             src={issue.coverImageUrl}
             alt={issue.title}
             fill
@@ -171,13 +171,13 @@ export function IssueCard({ issue, index = 0, source = 'browse' }: IssueCardProp
                 setTimeout(() => setCopied(false), 1500);
               }
             }}
-            className={`flex h-11 w-11 items-center justify-center rounded-full bg-white/95 transition-colors hover:bg-white ${
+            className={`flex h-9 w-9 items-center justify-center rounded-full bg-white/95 shadow-sm transition-colors hover:bg-white ${
               copied ? 'text-green-600' : 'text-gray-500 hover:text-flame-700'
             }`}
             aria-label="Share issue"
             title={copied ? 'Link copied' : 'Share'}
           >
-            {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
+            {copied ? <Check className="h-3.5 w-3.5" /> : <Share2 className="h-3.5 w-3.5" />}
           </button>
           <button
             onClick={(e) => {
@@ -185,11 +185,11 @@ export function IssueCard({ issue, index = 0, source = 'browse' }: IssueCardProp
               e.stopPropagation();
               toggle(issue.id);
             }}
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-white/95 transition-colors hover:bg-white"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/95 shadow-sm transition-colors hover:bg-white"
             aria-label={bookmarked ? 'Remove bookmark' : 'Add bookmark'}
           >
             <Heart
-              className={`h-4 w-4 transition-colors ${bookmarked ? 'fill-red-500 text-red-500' : 'text-gray-600'}`}
+              className={`h-3.5 w-3.5 transition-colors ${bookmarked ? 'fill-red-500 text-red-500' : 'text-gray-600'}`}
             />
           </button>
         </div>
@@ -204,13 +204,13 @@ export function IssueCard({ issue, index = 0, source = 'browse' }: IssueCardProp
           {issue.theme && (
             <div className="mt-1">
               <p className="line-clamp-2 text-xs leading-relaxed text-gray-600">
-                {issue.title}
+                <span>{issue.magazine.name} —</span>
+                <span className="block whitespace-nowrap">
+                  {formatMonthYear(issue.month, issue.year)}
+                </span>
               </p>
             </div>
           )}
-          <p className="mt-1 text-[11px] font-medium text-gray-500">
-            {formatMonthYear(issue.month, issue.year)}
-          </p>
         </div>
 
         {/* Topics */}
@@ -229,21 +229,17 @@ export function IssueCard({ issue, index = 0, source = 'browse' }: IssueCardProp
         </div>
 
         {/* Description */}
-        <p className="mb-3 line-clamp-2 flex-1 text-xs leading-relaxed text-gray-500">
-          {issue.description}
-        </p>
-
-        {/* Meta */}
-        <div className="mb-3 flex items-center gap-2 text-[11px] text-gray-600">
-          {issue.pageCount && <span>{issue.pageCount}p</span>}
-          <span>{formatFileSize(issue.fileSizeBytes)}</span>
+        <div className="mb-3 hidden flex-1 sm:block">
+          <p className="line-clamp-2 text-xs leading-relaxed text-gray-500">
+            {issue.description}
+          </p>
         </div>
 
         {/* Actions — hidden in selection mode (the whole card is a selection
             target there; surfacing nav buttons would be confusing). */}
         <div
           className={cn(
-            'relative z-10 flex gap-1.5',
+            'relative z-10 mt-auto flex gap-1.5',
             selectionEnabled && 'pointer-events-none opacity-0',
           )}
         >

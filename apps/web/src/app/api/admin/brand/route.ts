@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     const keys: Partial<Record<BrandSlot, string>> = {};
     try {
       for (const slot of slots) {
-        const size = slot === 'favicon' ? 256 : slot === 'social' ? 1200 : 512;
+        const size = slot === 'favicon' ? 256 : slot === 'social' ? 1200 : 128;
         const canvas = createCanvas(size, size);
         const scale = Math.min(size / imageSource.width, size / imageSource.height);
         const width = Math.round(imageSource.width * scale);

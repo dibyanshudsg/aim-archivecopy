@@ -8,9 +8,10 @@ interface Props {
   current: number;
   total: number;
   onChange: (page: number) => void;
+  className?: string;
 }
 
-export function Pagination({ current, total, onChange }: Props) {
+export function Pagination({ current, total, onChange, className }: Props) {
   if (total <= 1) return null;
 
   const items = computePageItems(current, total);
@@ -18,7 +19,7 @@ export function Pagination({ current, total, onChange }: Props) {
   return (
     <nav
       aria-label="Pagination"
-      className="mt-10 flex items-center justify-center gap-1.5"
+      className={cn('mt-10 flex items-center justify-center gap-1.5', className)}
     >
       <PageButton
         ariaLabel="Previous page"

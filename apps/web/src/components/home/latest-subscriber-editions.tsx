@@ -1,6 +1,6 @@
 'use client';
 
-import Image from '@/components/magazine/archive-image';
+import { ViewportCoverImage } from '@/components/magazine/viewport-cover-image';
 import Link from 'next/link';
 import { CalendarClock, Info, LockKeyhole, Sparkles } from 'lucide-react';
 import type { ApiIssue } from '@/lib/api';
@@ -23,7 +23,7 @@ function SubscriberEditionCard({ issue }: { issue: ApiIssue }) {
       <div className="relative h-full min-h-[188px] overflow-hidden bg-gradient-to-br from-gold-50 to-flame-50">
         <div className="absolute inset-y-0 left-0 z-20 w-1 bg-gradient-to-b from-gold-500 to-flame-500" />
         {issue.cover_image_url ? (
-          <Image
+          <ViewportCoverImage
             src={issue.cover_image_url}
             alt={issue.title}
             fill

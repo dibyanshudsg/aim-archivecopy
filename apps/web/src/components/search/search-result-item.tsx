@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Image from '@/components/magazine/archive-image';
+import { ViewportCoverImage } from '@/components/magazine/viewport-cover-image';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import { BookOpen, Lock } from 'lucide-react';
@@ -38,6 +39,7 @@ export function SearchResultItem({ result, index, query }: SearchResultItemProps
             pill — page number now overlaid as a badge so we don't lose
             at-a-glance scanning). */}
         <ResultThumbnail
+          priority={index < 4}
           coverUrl={result.cover_image_url}
           title={themeTitle ? `${themeTitle} — ${result.issue_title}` : result.issue_title}
           pageNumber={result.page_number}
@@ -123,12 +125,14 @@ const PREVIEW_GAP = 12;
 const VIEWPORT_PAD = 12;
 
 function ResultThumbnail({
+  priority,
   coverUrl,
   title,
   pageNumber,
   isEmbargoed,
   embargoLiftLabel,
 }: {
+  priority: boolean;
   coverUrl: string | null;
   title: string;
   pageNumber: number | null;
@@ -179,10 +183,11 @@ function ResultThumbnail({
               the archive's book treatments. */}
           <div className="absolute inset-y-0 left-0 z-10 w-1 bg-gradient-to-b from-gold-500 to-flame-500" />
           {coverUrl ? (
-            <Image
+            <ViewportCoverImage
               src={coverUrl}
               alt=""
               fill
+              priority={priority}
               className="object-cover"
               sizes="60px"
             />

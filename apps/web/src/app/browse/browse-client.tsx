@@ -44,8 +44,8 @@ import { warmIssueDetailRoute } from '@/lib/issue-detail-url';
 
 const PANEL_STORAGE_KEY = 'browse:panel:open';
 const PAGE_SIZE = 24;
-const BROWSE_GRID_COLUMNS = 'grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4';
-const BROWSE_GRID_FULL_SPAN = 'col-span-2 sm:col-span-3 md:col-span-3 lg:col-span-4 xl:col-span-4';
+const BROWSE_GRID_COLUMNS = 'grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5';
+const BROWSE_GRID_FULL_SPAN = 'col-span-2 sm:col-span-3 md:col-span-3 lg:col-span-4 xl:col-span-5';
 
 type NormalizedIssue = ReturnType<typeof normalizeIssue>;
 type BrowseGridItem =
@@ -691,7 +691,7 @@ function BrowseContent({
 
         {/* Grid area */}
         <div ref={gridTopRef} className="min-w-0 flex-1 px-4 py-5 sm:px-6 lg:px-8">
-          <div ref={toolbarRef} className="mb-4 hidden flex-col gap-3 md:flex lg:flex-row lg:items-center lg:justify-between">
+          <div ref={toolbarRef} className="mb-4 hidden flex-col gap-3 md:flex lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center">
             <div className="flex min-w-0 items-center gap-3">
               {!panelOpen && (
                 <button
@@ -714,7 +714,16 @@ function BrowseContent({
               </span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:gap-3">
+            {total > 0 && (
+              <Pagination
+                current={currentPage}
+                total={totalPages}
+                onChange={handlePageChange}
+                className="mt-0 hidden lg:flex"
+              />
+            )}
+
+            <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:gap-3 lg:justify-self-end">
               <SortMenu sort={filters.sort} dir={filters.dir} onChange={setSortChoice} />
               <button
                 type="button"
@@ -742,6 +751,15 @@ function BrowseContent({
             onRemoveQuery={() => setQuery('')}
             onClearAll={clearAll}
           />
+
+          {!loading && total > 0 && (
+            <Pagination
+              current={currentPage}
+              total={totalPages}
+              onChange={handlePageChange}
+              className="mb-4 mt-0 md:hidden"
+            />
+          )}
 
           {loading ? (
             <LoadingState view={filters.view} />

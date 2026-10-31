@@ -371,9 +371,12 @@ export async function listPublicIssues(input: PublicIssueListInput): Promise<Pub
 }
 
 async function listPublicIssuesUncached(input: PublicIssueListInput): Promise<PublicIssueListResult> {
-  const magazines = await listMagazines();
-  const featuredIds = [...await getLiveHeroIssueIds()];
-  const searchIssueIds = await queryIssueIdsMatchingSearch(input.q);
+  const [magazines, liveHeroIssueIds, searchIssueIds] = await Promise.all([
+    listMagazines(),
+    getLiveHeroIssueIds(),
+    queryIssueIdsMatchingSearch(input.q),
+  ]);
+  const featuredIds = [...liveHeroIssueIds];
   const where = buildIssueWhere(input, magazines, featuredIds, undefined, searchIssueIds);
   const order = buildOrderBy(input);
   const offset = (input.page - 1) * input.pageSize;
@@ -412,10 +415,9 @@ async function listPublicIssuesUncached(input: PublicIssueListInput): Promise<Pu
   const facets = buildFacets(input, magazines, facetResults);
 
   const now = new Date();
-  const featured = await getLiveHeroIssueIds(now);
   const data = rowsResult.rows
     .map((row) => rowToIssue(row as unknown as IssueJoinedRow))
-    .map((row) => applyEmbargoToIssueRow(row, now, featured.has(row.id)));
+    .map((row) => applyEmbargoToIssueRow(row, now, liveHeroIssueIds.has(row.id)));
   const issueCacheSuffix = embargoWindowCacheKey();
   for (const issue of data) {
     issueCache.set(`${issue.id}:${issueCacheSuffix}`, issue);

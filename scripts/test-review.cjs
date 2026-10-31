@@ -38,6 +38,8 @@ topics_json TEXT, pdf_url TEXT, epub_url TEXT, mobi_url TEXT, cover_image_url TE
 file_size_bytes INTEGER, read_count INTEGER, download_count INTEGER, is_published INTEGER, created_at TEXT, updated_at TEXT);
 CREATE TABLE issue_search_index (issue_id TEXT, page_number INTEGER, content TEXT);
 CREATE TABLE indexing_runs (job_id TEXT, created_at TEXT);
+CREATE TABLE site_settings (key TEXT PRIMARY KEY, value TEXT);
+INSERT INTO site_settings VALUES ('hero_issue_controls', '{"hidden":["locked"]}');
 INSERT INTO magazines VALUES ('m', 'All India Magazine', 'english', '', NULL, '2020-01-01');`);
 const cutoff = embargo.readableCutoffIssueMonth();
 const add = db.prepare('INSERT INTO issues (id, magazine_id, title, theme, year, month, pdf_url, is_published, created_at, topics_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
@@ -103,7 +105,8 @@ client.getDb = () => ({ execute, batch: inputs => Promise.all(inputs.map(execute
   statements.length = 0;
   const secondPage = await repo.listPublicIssues({ ...browseInput, page: 2, sort: 'title' });
   assert.equal(secondPage.data.length, 1);
-  assert.equal(statements.length, 1, 'page/sort changes execute only the row query, sharing counts and facets');
+  assert.equal(statements.filter(sql => sql.includes('LIMIT ? OFFSET ?')).length, 1, 'page/sort changes execute one catalogue row query');
+  assert.equal(statements.filter(sql => sql.includes('SELECT COUNT(*) AS count')).length, 0, 'page/sort changes share cached counts and facets');
   assert.equal((await repo.listPublicIssues(parsePublicIssueListInput({ q: '%' }))).total, 0);
   assert.deepEqual((await repo.listHomeShelfIssues(240, cutoff.year - 1)).map(row => row.id), ['older']);
   client.getDb = () => ({ execute: async () => { throw new Error('offline'); } });
