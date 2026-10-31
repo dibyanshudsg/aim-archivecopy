@@ -1,4 +1,5 @@
 import { getPublicIssueById } from '@/lib/db';
+import { preload } from 'react-dom';
 import { ReaderIssueProvider } from './reader-issue-context';
 
 // Issue metadata changes infrequently. Including it in the route payload lets
@@ -15,6 +16,10 @@ export default async function ReaderLayout({
 }) {
   const { id } = await params;
   const issue = await getPublicIssueById(id);
+
+  if (issue?.pdf_url) {
+    preload(issue.pdf_url, { as: 'fetch', crossOrigin: 'anonymous' });
+  }
 
   return <ReaderIssueProvider issue={issue}>{children}</ReaderIssueProvider>;
 }

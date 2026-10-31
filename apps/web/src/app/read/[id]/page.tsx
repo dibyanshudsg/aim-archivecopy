@@ -14,7 +14,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  CalendarDays,
   Download,
   FileText,
   ZoomIn,
@@ -90,6 +89,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
   const [infoDrawerOpen, setInfoDrawerOpen] = useState(false);
   const closeInfoDrawer = useCallback(() => setInfoDrawerOpen(false), []);
   const [scale, setScale] = useState(1.0);
+  const [fitWidthScale, setFitWidthScale] = useState<number | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [error, setError] = useState(false);
   const pdfRetry = usePdfRetry(issue?.pdfUrl ?? null);
@@ -260,6 +260,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
     if (typeof window === 'undefined') return;
     const saved = window.localStorage.getItem('aim-reader-view-mode');
     if (saved === 'single' || saved === 'continuous') setViewMode(saved);
+    else if (window.matchMedia('(max-width: 639px)').matches) setViewMode('continuous');
     const savedPpv = window.localStorage.getItem('aim-reader-pages-per-view');
     if (savedPpv === '1' || savedPpv === '2') setPagesPerView(Number(savedPpv) as 1 | 2);
     setHydrated(true);
@@ -299,10 +300,13 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
       /* malformed state — ignore */
     }
 
-    if (savedScale != null) {
+    if (isPhonePx) {
+      // Phone always starts from a freshly measured fit-width scale below.
+      // Saved zoom is intentionally ignored so reopening never starts enlarged.
+      setScale(1);
+      setFitWidthScale(null);
+    } else if (savedScale != null) {
       setScale(savedScale);
-    } else if (isPhonePx) {
-      setScale(0.7);
     }
 
     const urlPage = new URLSearchParams(window.location.search).get('page');
@@ -1037,16 +1041,24 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
 
   const zoomIn = () => setScale((s) => Math.min(s + 0.2, 4));
   const zoomOut = () => setScale((s) => Math.max(s - 0.2, 0.1));
-  const fitWidth = () => {
+  const fitWidth = useCallback(() => {
     const container = scrollContainerRef.current;
     if (!container || !pageAspect) return;
     const padding = window.innerWidth >= 640 ? 64 : 32;
     const width = pageAspect.w * effectivePagesPerView + (effectivePagesPerView === 2 ? 12 : 0);
-    setScale(Math.min(4, Math.max(0.1, (container.clientWidth - padding) / width)));
-  };
+    const next = Math.min(4, Math.max(0.1, (container.clientWidth - padding) / width));
+    setFitWidthScale(next);
+    setScale(next);
+  }, [effectivePagesPerView, pageAspect]);
+
+  useEffect(() => {
+    if (!isPhone || !pageAspect) return;
+    const frame = window.requestAnimationFrame(fitWidth);
+    return () => window.cancelAnimationFrame(frame);
+  }, [fitWidth, id, isPhone, pageAspect]);
   /** Double-tap toggle: zoom in to 1.8× from default, back to default at zoom. */
   const toggleZoom = () => {
-    setScale((s) => (s > 1.4 ? (isPhone ? 0.7 : 1) : 1.8));
+    setScale((s) => (s > 1.4 ? (isPhone ? fitWidthScale ?? 1 : 1) : 1.8));
   };
 
   const toggleFullscreen = () => {
@@ -1153,9 +1165,9 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
               <button
                 type="button"
                 onClick={() => setInfoDrawerOpen(true)}
-                className="group flex min-w-0 items-center gap-2 rounded-xl border border-flame-100 bg-gradient-to-br from-white to-flame-50/40 px-2 py-1.5 text-left shadow-sm transition-all hover:border-flame-200 hover:from-gold-50 hover:to-flame-50 hover:shadow-[0_6px_18px_rgba(190,140,46,0.14)]"
-                aria-label={`View details for ${issue.title}`}
-                title="View details"
+                aria-label={`Information about ${issue.title}`}
+                aria-expanded={infoDrawerOpen}
+                className="group flex min-w-0 items-center gap-2 rounded-xl border border-flame-100 bg-gradient-to-br from-white to-flame-50/40 px-2 py-1.5 text-left shadow-sm transition-colors hover:border-flame-200 hover:bg-flame-50/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame-500"
               >
                 {issue.coverImageUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -1166,15 +1178,13 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
                   />
                 )}
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-gray-900">
-                    {issue.magazine?.name}
+                  <span className="flex items-center gap-1.5 truncate text-sm font-semibold text-gray-900">
+                    <span className="truncate">{issue.magazine?.name}</span>
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-flame-700 md:hidden" aria-hidden="true"><Info className="h-4 w-4" /></span>
                   </span>
-                  <span className="flex min-w-0 items-center gap-1.5 text-xs">
+                  <span className="flex min-w-0 items-center text-xs">
                     <span className="truncate text-gray-500">
                       {formatMonthYear(issue.month, issue.year)}
-                    </span>
-                    <span className="shrink-0 bg-gradient-to-r from-gold-600 to-flame-500 bg-clip-text font-semibold text-transparent">
-                      View Full Details
                     </span>
                   </span>
                 </span>
@@ -1222,13 +1232,12 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
               </div>
               <button
                 onClick={() => setInfoDrawerOpen(true)}
-                className="flex min-h-11 items-center justify-center gap-1 rounded-lg px-2 text-sm font-semibold text-gray-700 transition-all hover:bg-white hover:text-flame-700"
+                className="hidden min-h-11 items-center justify-center gap-1 rounded-lg px-2 text-sm font-semibold text-gray-700 transition-all hover:bg-white hover:text-flame-700 md:flex"
                 aria-label="More reading options"
                 aria-expanded={infoDrawerOpen}
                 title="More reading options"
               >
                 <Info className="h-4 w-4" />
-                <span className="md:hidden">More</span>
               </button>
 
               {/* Desktop-only: zoom + fullscreen + info */}
@@ -1264,7 +1273,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
               showPagesPerViewToggle={!isPhone}
             />
             <div className="flex shrink-0 items-center gap-0.5 rounded-xl bg-gradient-to-br from-flame-50/50 to-gold-50/40 p-0.5 ring-1 ring-flame-100/70">
-              <button onClick={fitWidth} disabled={!pageAspect} className="min-h-11 rounded-lg px-3 text-xs font-semibold text-flame-800 disabled:opacity-50">Fit width</button>
+              {(!isPhone || (fitWidthScale !== null && Math.abs(scale - fitWidthScale) > 0.02)) && <button onClick={fitWidth} disabled={!pageAspect} className="min-h-11 rounded-lg px-3 text-xs font-semibold text-flame-800 disabled:opacity-50">Fit width</button>}
             </div>
           </div>
         </header>
@@ -1337,11 +1346,6 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
         bookmarked={bookmarked}
         onBookmark={() => toggle(issue.id)}
         onClose={closeInfoDrawer}
-        scale={scale}
-        zoomIn={zoomIn}
-        zoomOut={zoomOut}
-        fitWidth={fitWidth}
-        renderPage={renderPageToBlob}
       />
 
       {/* PDF Viewer */}
@@ -1741,7 +1745,6 @@ function IssueInfoDrawer({
   bookmarked,
   onBookmark,
   onClose,
-  scale, zoomIn, zoomOut, fitWidth, renderPage,
 }: {
   issue: IssueWithMagazine;
   currentPage: number;
@@ -1750,11 +1753,6 @@ function IssueInfoDrawer({
   bookmarked: boolean;
   onBookmark: () => void;
   onClose: () => void;
-  scale: number;
-  zoomIn: () => void;
-  zoomOut: () => void;
-  fitWidth: () => void;
-  renderPage: (n: number) => Promise<Blob | null>;
 }) {
   const [copied, setCopied] = useState(false);
   const drawerRef = useRef<HTMLElement>(null);
@@ -1823,11 +1821,6 @@ function IssueInfoDrawer({
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 py-4">
-              <div className="mb-5 flex flex-wrap items-center gap-3">
-                <ZoomControls scale={scale} zoomIn={zoomIn} zoomOut={zoomOut} />
-                <button onClick={fitWidth} className="min-h-11 rounded-lg border border-flame-200 px-3 text-sm font-semibold text-flame-800">Fit width</button>
-                <div className="flex items-center gap-2"><SharePageButton issue={issue} pageNumber={currentPage} renderPage={renderPage} /><span className="text-sm text-gray-700">Share page {currentPage}</span></div>
-              </div>
               <div className="flex gap-4">
                 <div className="relative h-36 w-[108px] shrink-0 overflow-hidden rounded-md bg-gradient-to-br from-gold-100 to-flame-50 shadow-sm">
                   <div className="absolute inset-y-0 left-0 z-10 w-1.5 bg-gradient-to-b from-gold-500 to-flame-500" />
@@ -1870,7 +1863,6 @@ function IssueInfoDrawer({
               </div>
 
               <div className="mt-5 grid grid-cols-2 gap-2">
-                <ReaderMeta icon={CalendarDays} label="Published" value={formatMonthYear(issue.month, issue.year)} />
                 <ReaderMeta icon={FileText} label="Pages" value={pages ? String(pages) : '-'} />
                 <ReaderMeta icon={HardDrive} label="Size" value={formatFileSize(issue.fileSizeBytes)} />
               </div>
@@ -1897,7 +1889,7 @@ function IssueInfoDrawer({
 
               {issue.description && (
                 <div className="mt-5 rounded-xl bg-gray-50 px-4 py-3">
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-600">{issue.description}</p>
+                  <p className="whitespace-pre-wrap text-justify text-sm leading-relaxed text-gray-600">{issue.description}</p>
                 </div>
               )}
 
