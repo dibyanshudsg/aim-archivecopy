@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronUp, ChevronDown } from 'lucide-react';
 
 interface Props {
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -11,7 +10,6 @@ interface Props {
   /** When false the scrubber stays hidden — single-page mode has no
    *  inter-page scrolling so the indicator would be misleading. */
   enabled: boolean;
-  onJumpToPage: (page: number) => void;
 }
 
 const HIDE_DELAY_MS = 1500;
@@ -23,7 +21,6 @@ export function ReaderPageScrubber({
   currentPage,
   numPages,
   enabled,
-  onJumpToPage,
 }: Props) {
   const [visible, setVisible] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -116,15 +113,13 @@ export function ReaderPageScrubber({
 
   // One-page step buttons — reuse the parent's nav so debouncing + scroll-to
   // logic match the rest of the reader.
-  const stepUp = () => onJumpToPage(Math.max(1, currentPage - 1));
-  const stepDown = () => onJumpToPage(Math.min(numPages, currentPage + 1));
 
   if (!enabled) return null;
 
   return (
     <div
       ref={trackRef}
-      className="pointer-events-none fixed right-0 z-30 md:hidden"
+      className="pointer-events-none fixed right-0 z-30 lg:hidden"
       style={{
         top: `${TRACK_TOP_PX}px`,
         bottom: `${TRACK_BOTTOM_PX}px`,
@@ -141,7 +136,7 @@ export function ReaderPageScrubber({
             // Position the pill on the track at the current progress.
             style={{
               position: 'absolute',
-              top: `calc(${progress * 100}% - 28px)`,
+              top: `calc(${progress * 100}% - 22px)`,
               right: 8,
             }}
             className="pointer-events-auto"
@@ -151,40 +146,14 @@ export function ReaderPageScrubber({
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerUp}
-              className={`flex touch-none flex-col items-center overflow-hidden rounded-full bg-gradient-to-b from-gold-500 to-flame-500 text-white shadow-lg ring-1 ring-flame-600/30 select-none ${
+              className={`flex h-11 min-w-14 touch-none items-center justify-center rounded-full bg-gradient-to-b from-gold-500 to-flame-500 px-2 text-white shadow-lg ring-1 ring-flame-600/30 select-none ${
                 dragging ? 'scale-110' : ''
               } transition-transform duration-150`}
               style={{ cursor: dragging ? 'grabbing' : 'grab' }}
             >
-              <button
-                type="button"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  stepUp();
-                  showAndScheduleHide();
-                }}
-                aria-label="Previous page"
-                className="flex h-7 w-12 items-center justify-center text-white/90 hover:bg-white/10"
-              >
-                <ChevronUp className="h-3.5 w-3.5" />
-              </button>
-              <div className="flex h-9 w-12 items-center justify-center border-y border-white/15 px-2 text-xs font-semibold tabular-nums">
+              <div className="text-xs font-semibold tabular-nums">
                 {currentPage}/{numPages || '—'}
               </div>
-              <button
-                type="button"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  stepDown();
-                  showAndScheduleHide();
-                }}
-                aria-label="Next page"
-                className="flex h-7 w-12 items-center justify-center text-white/90 hover:bg-white/10"
-              >
-                <ChevronDown className="h-3.5 w-3.5" />
-              </button>
             </div>
           </motion.div>
         )}

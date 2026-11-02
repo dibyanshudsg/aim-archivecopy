@@ -1,7 +1,7 @@
 'use client';
 
-import { Suspense, use, useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { Suspense, use, useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect, type FormEvent } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion, AnimatePresence, useReducedMotion, type PanInfo } from 'framer-motion';
 import { Document, pdfjs } from 'react-pdf';
@@ -23,6 +23,8 @@ import {
   HardDrive,
   Heart,
   Info,
+  Menu,
+  Search,
   Rows3,
   Share2,
   Columns2,
@@ -30,13 +32,13 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { fetchIssue, normalizeIssue } from '@/lib/api';
+import { fetchIssue, normalizeIssue, type FullTextSearchResult } from '@/lib/api';
 import { useBookmarks } from '@/lib/bookmarks-store';
 import { formatFileSize, formatMonthYear } from '@/lib/utils';
-import { shareIssue, sharePage } from '@/lib/share-issue';
+import { shareIssue, sharePage, type ShareResult } from '@/lib/share-issue';
 import { ReaderPageScrubber } from '@/components/reader/page-scrubber';
 import { SearchablePdfPage } from '@/components/reader/searchable-pdf-page';
-import { parseSearchReaderTarget } from '@/lib/search-reader-target';
+import { parseSearchReaderTarget, searchReaderPath } from '@/lib/search-reader-target';
 import { CopyDisclaimerToast } from '@/components/reader/copy-disclaimer-toast';
 import { configurePdfWorker } from '@/lib/pdf-worker-client';
 import {
@@ -65,6 +67,7 @@ export default function ReaderPage({ params }: { params: Promise<{ id: string }>
 
 function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const searchParams = useSearchParams();
   const searchQuery = searchParams.get('find') || '';
   const searchPage = searchParams.get('matchPage') || '';
@@ -87,6 +90,8 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [infoDrawerOpen, setInfoDrawerOpen] = useState(false);
+  const [findDrawerOpen, setFindDrawerOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const closeInfoDrawer = useCallback(() => setInfoDrawerOpen(false), []);
   const [scale, setScale] = useState(1.0);
   const [fitWidthScale, setFitWidthScale] = useState<number | null>(null);
@@ -588,7 +593,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
         drainTimerRef.current = null;
       }
     };
-  }, [viewMode, numPages, drainQueue]);
+  }, [viewMode, numPages, effectivePagesPerView, drainQueue]);
 
   // When leaving continuous mode, reset the mount window so memory is freed
   // and re-entering starts fresh.
@@ -819,7 +824,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
 
     const onScroll = () => {
       // On desktop, force the header visible and skip the hide logic.
-      if (window.innerWidth >= 768) {
+      if (window.innerWidth >= 0) {
         setHeaderHidden(false);
         lastScrollTopRef.current = sc.scrollTop;
         return;
@@ -838,7 +843,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
 
     sc.addEventListener('scroll', onScroll, { passive: true });
     const onResize = () => {
-      if (window.innerWidth >= 768) setHeaderHidden(false);
+      setHeaderHidden(false);
     };
     window.addEventListener('resize', onResize);
     return () => {
@@ -1148,8 +1153,8 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
         className="relative z-10 shrink-0 overflow-hidden bg-white"
       >
         <header className="bg-white shadow-sm">
-          {/* Row 1: identity + actions. On md+ the page-controls cluster is
-              absolute-centred over this row; on phone/tablet it moves to row 2. */}
+          {/* One compact row on phone/tablet; desktop keeps the full identity
+              and centred reader controls. */}
           <div className="relative flex items-center justify-between gap-2 px-3 py-2 sm:px-4 sm:py-2.5">
             {/* Left: back + cover + title */}
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -1167,7 +1172,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
                 onClick={() => setInfoDrawerOpen(true)}
                 aria-label={`Information about ${issue.title}`}
                 aria-expanded={infoDrawerOpen}
-                className="group flex min-w-0 items-center gap-2 rounded-xl border border-flame-100 bg-gradient-to-br from-white to-flame-50/40 px-2 py-1.5 text-left shadow-sm transition-colors hover:border-flame-200 hover:bg-flame-50/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame-500"
+                className="group relative flex shrink-0 items-center gap-2 rounded-xl border border-flame-100 bg-gradient-to-br from-white to-flame-50/40 p-1.5 text-left shadow-sm transition-colors hover:border-flame-200 hover:bg-flame-50/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame-500 lg:min-w-0 lg:px-2"
               >
                 {issue.coverImageUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -1177,10 +1182,12 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
                     className="h-10 w-[30px] shrink-0 rounded-sm object-cover shadow-sm ring-1 ring-flame-100"
                   />
                 )}
-                <span className="min-w-0">
+                <span className="absolute right-0.5 top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white text-flame-700 shadow-sm lg:hidden" aria-hidden="true">
+                  <Info className="h-2.5 w-2.5" />
+                </span>
+                <span className="hidden min-w-0 lg:block">
                   <span className="flex items-center gap-1.5 truncate text-sm font-semibold text-gray-900">
                     <span className="truncate">{issue.magazine?.name}</span>
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-flame-700 md:hidden" aria-hidden="true"><Info className="h-4 w-4" /></span>
                   </span>
                   <span className="flex min-w-0 items-center text-xs">
                     <span className="truncate text-gray-500">
@@ -1191,9 +1198,23 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
               </button>
             </div>
 
+            <div className="flex min-w-0 flex-1 items-center justify-center lg:hidden">
+              <PageControls
+                compact
+                currentPage={currentPage}
+                numPages={numPages}
+                pagesPerView={effectivePagesPerView}
+                viewMode={viewMode}
+                goToPage={goToPage}
+                setViewMode={setViewMode}
+                setPagesPerView={setPagesPerView}
+                showPagesPerViewToggle={false}
+              />
+            </div>
+
             {/* Desktop center cluster — absolute centred over row 1. Hidden on
                 phone/tablet (those see the same controls in row 2 below). */}
-            <div className="pointer-events-none absolute inset-x-0 top-1/2 hidden -translate-y-1/2 md:flex md:items-center md:justify-center">
+            <div className="pointer-events-none absolute inset-x-0 top-1/2 hidden -translate-y-1/2 lg:flex lg:items-center lg:justify-center">
               <div className="pointer-events-auto flex items-center gap-1">
                 <PageControls
                   currentPage={currentPage}
@@ -1214,7 +1235,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
             <div className="flex shrink-0 items-center gap-0.5 rounded-xl bg-gradient-to-br from-flame-50/50 to-gold-50/40 p-0.5 ring-1 ring-flame-100/70">
               <button
                 onClick={() => toggle(issue.id)}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-all hover:bg-white hover:text-flame-700 hover:shadow-sm"
+                className="flex h-11 w-11 items-center justify-center rounded-lg text-gray-600 transition-all hover:bg-white hover:text-flame-700 hover:shadow-sm lg:h-9 lg:w-9"
                 aria-label="Bookmark"
               >
                 <Heart
@@ -1222,7 +1243,17 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
                 />
               </button>
 
-              <div className="hidden items-center md:flex">
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(true)}
+                className="flex h-11 w-11 items-center justify-center rounded-lg text-gray-700 transition-colors hover:bg-white hover:text-flame-700 lg:hidden"
+                aria-label="Open reader menu"
+                aria-expanded={mobileMenuOpen}
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+
+              <div className="hidden items-center lg:flex">
               <ShareIssueButton issue={issue} />
               <SharePageButton
                 issue={issue}
@@ -1231,8 +1262,17 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
               />
               </div>
               <button
+                onClick={() => setFindDrawerOpen(true)}
+                className="hidden min-h-11 items-center justify-center gap-1 rounded-lg px-2 text-sm font-semibold text-gray-700 transition-all hover:bg-white hover:text-flame-700 lg:flex"
+                aria-label="Find in text"
+                aria-expanded={findDrawerOpen}
+                title="Find in text"
+              >
+                <Search className="h-4 w-4" />
+              </button>
+              <button
                 onClick={() => setInfoDrawerOpen(true)}
-                className="hidden min-h-11 items-center justify-center gap-1 rounded-lg px-2 text-sm font-semibold text-gray-700 transition-all hover:bg-white hover:text-flame-700 md:flex"
+                className="hidden min-h-11 items-center justify-center gap-1 rounded-lg px-2 text-sm font-semibold text-gray-700 transition-all hover:bg-white hover:text-flame-700 lg:flex"
                 aria-label="More reading options"
                 aria-expanded={infoDrawerOpen}
                 title="More reading options"
@@ -1241,7 +1281,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
               </button>
 
               {/* Desktop-only: zoom + fullscreen + info */}
-              <div className="hidden md:flex md:items-center md:gap-1">
+              <div className="hidden lg:flex lg:items-center lg:gap-1">
                 <div className="mx-1 h-5 w-px bg-flame-200/70" />
                 <ZoomControls scale={scale} zoomIn={zoomIn} zoomOut={zoomOut} />
                 <button
@@ -1259,23 +1299,6 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
             </div>
           </div>
 
-          {/* Row 2 (phone/tablet only): page controls + zoom. Horizontally
-              scrollable if it overflows on very narrow screens. */}
-          <div className="flex items-center justify-center gap-2 overflow-x-auto border-t border-gray-100 px-2 py-1.5 md:hidden">
-            <PageControls
-              currentPage={currentPage}
-              numPages={numPages}
-              pagesPerView={effectivePagesPerView}
-              viewMode={viewMode}
-              goToPage={goToPage}
-              setViewMode={setViewMode}
-              setPagesPerView={setPagesPerView}
-              showPagesPerViewToggle={!isPhone}
-            />
-            <div className="flex shrink-0 items-center gap-0.5 rounded-xl bg-gradient-to-br from-flame-50/50 to-gold-50/40 p-0.5 ring-1 ring-flame-100/70">
-              {(!isPhone || (fitWidthScale !== null && Math.abs(scale - fitWidthScale) > 0.02)) && <button onClick={fitWidth} disabled={!pageAspect} className="min-h-11 rounded-lg px-3 text-xs font-semibold text-flame-800 disabled:opacity-50">Fit width</button>}
-            </div>
-          </div>
         </header>
 
         {/* Reading progress — sits inside the auto-hide wrap so it slides
@@ -1345,7 +1368,42 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
         open={infoDrawerOpen}
         bookmarked={bookmarked}
         onBookmark={() => toggle(issue.id)}
+        onFind={() => { setInfoDrawerOpen(false); setFindDrawerOpen(true); }}
         onClose={closeInfoDrawer}
+      />
+
+      <FindTextDrawer
+        issueId={issue.id}
+        open={findDrawerOpen}
+        onClose={() => setFindDrawerOpen(false)}
+        onSelect={(result, query) => {
+          if (result.page_number === null) return;
+          const excerpt = decodeSearchSnippet(result.snippet);
+          setFindDrawerOpen(false);
+          router.replace(searchReaderPath(issue.id, { page: result.page_number, query, excerpt }), { scroll: false });
+        }}
+      />
+
+      <MobileReaderMenu
+        issue={issue}
+        open={mobileMenuOpen}
+        phone={isPhone}
+        saved={bookmarked}
+        currentPage={currentPage}
+        scale={scale}
+        viewMode={viewMode}
+        canFitWidth={Boolean(pageAspect)}
+        onClose={() => setMobileMenuOpen(false)}
+        onFind={() => { setMobileMenuOpen(false); setFindDrawerOpen(true); }}
+        onInfo={() => { setMobileMenuOpen(false); setInfoDrawerOpen(true); }}
+        onSave={() => toggle(issue.id)}
+        onShareIssue={() => shareIssue(issue)}
+        onSharePage={async () => sharePage(issue, currentPage, await renderPageToBlob(currentPage))}
+        onViewModeChange={setViewMode}
+        onFitWidth={fitWidth}
+        onZoomIn={zoomIn}
+        onZoomOut={zoomOut}
+        onFullscreen={toggleFullscreen}
       />
 
       {/* PDF Viewer */}
@@ -1596,7 +1654,6 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
         currentPage={currentPage}
         numPages={numPages}
         enabled={viewMode === 'continuous'}
-        onJumpToPage={goToPage}
       />
 
       <CopyDisclaimerToast />
@@ -1605,6 +1662,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
 }
 
 function PageControls({
+  compact = false,
   currentPage,
   numPages,
   pagesPerView,
@@ -1614,6 +1672,7 @@ function PageControls({
   setPagesPerView,
   showPagesPerViewToggle = true,
 }: {
+  compact?: boolean;
   currentPage: number;
   numPages: number;
   pagesPerView: 1 | 2;
@@ -1625,7 +1684,7 @@ function PageControls({
   showPagesPerViewToggle?: boolean;
 }) {
   const buttonClass =
-    'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-600 transition-all hover:bg-white hover:text-flame-700 hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-600 disabled:hover:shadow-none';
+    `flex ${compact ? 'h-11 w-11' : 'h-9 w-9'} shrink-0 items-center justify-center rounded-lg text-gray-600 transition-all hover:bg-white hover:text-flame-700 hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-600 disabled:hover:shadow-none`;
 
   return (
     <div className="flex items-center gap-0.5 rounded-xl bg-gradient-to-br from-flame-50/50 to-gold-50/40 p-0.5 ring-1 ring-flame-100/70">
@@ -1638,7 +1697,7 @@ function PageControls({
         <ChevronLeft className="h-5 w-5" />
       </button>
 
-      <div className="flex shrink-0 items-center gap-1.5 px-1">
+      <div className={`flex shrink-0 items-center ${compact ? 'gap-1' : 'gap-1.5 px-1'}`}>
         <input
           type="number"
           min={1}
@@ -1646,7 +1705,7 @@ function PageControls({
           value={currentPage}
           onChange={(e) => goToPage(Number(e.target.value))}
           aria-label={`Page number, of ${numPages || 'unknown'}`}
-          className="w-14 rounded-lg border border-flame-200/60 bg-white/80 px-2 py-1 text-center text-sm text-gray-900 transition-colors focus:border-flame-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-flame-100/70 [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none"
+          className={`${compact ? 'w-11 px-1' : 'w-14 px-2'} rounded-lg border border-flame-200/60 bg-white/80 py-1 text-center text-sm text-gray-900 transition-colors focus:border-flame-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-flame-100/70 [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none`}
         />
         <span aria-hidden="true" className="text-sm text-gray-500">/ {numPages || '—'}</span>
       </div>
@@ -1660,9 +1719,9 @@ function PageControls({
         <ChevronRight className="h-5 w-5" />
       </button>
 
-      <div className="mx-0.5 h-5 w-px shrink-0 bg-flame-200/70" aria-hidden="true" />
+      {!compact && <div className="mx-0.5 h-5 w-px shrink-0 bg-flame-200/70" aria-hidden="true" />}
 
-      <button
+      {!compact && <button
         onClick={() => setViewMode((m) => (m === 'single' ? 'continuous' : 'single'))}
         className={buttonClass}
         aria-label={
@@ -1679,9 +1738,9 @@ function PageControls({
         ) : (
           <BookOpen className="h-4 w-4" />
         )}
-      </button>
+      </button>}
 
-      {showPagesPerViewToggle && (
+      {!compact && showPagesPerViewToggle && (
         <button
           onClick={() => setPagesPerView((p) => (p === 1 ? 2 : 1))}
           className={buttonClass}
@@ -1737,6 +1796,306 @@ function ZoomControls({
   );
 }
 
+function decodeSearchSnippet(value: string) {
+  return value
+    .replace(/<\/?mark>/gi, '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+function MobileReaderMenu({
+  issue,
+  open,
+  phone,
+  saved,
+  currentPage,
+  scale,
+  viewMode,
+  canFitWidth,
+  onClose,
+  onFind,
+  onInfo,
+  onSave,
+  onShareIssue,
+  onSharePage,
+  onViewModeChange,
+  onFitWidth,
+  onZoomIn,
+  onZoomOut,
+  onFullscreen,
+}: {
+  issue: IssueWithMagazine;
+  open: boolean;
+  phone: boolean;
+  saved: boolean;
+  currentPage: number;
+  scale: number;
+  viewMode: 'single' | 'continuous';
+  canFitWidth: boolean;
+  onClose: () => void;
+  onFind: () => void;
+  onInfo: () => void;
+  onSave: () => void;
+  onShareIssue: () => Promise<ShareResult>;
+  onSharePage: () => Promise<ShareResult>;
+  onViewModeChange: (mode: 'single' | 'continuous') => void;
+  onFitWidth: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onFullscreen: () => void;
+}) {
+  const [tab, setTab] = useState<'actions' | 'view'>('actions');
+  const [feedback, setFeedback] = useState('');
+  const panelRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setFeedback('');
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  const share = async (action: () => Promise<ShareResult>) => {
+    setFeedback('Sharing…');
+    const result = await action();
+    setFeedback(result === 'copied' ? 'Link copied' : result === 'shared' ? 'Shared' : 'Sharing cancelled');
+    setTimeout(() => setFeedback(''), 1600);
+  };
+
+  const actionClass = 'flex min-h-12 items-center gap-3 rounded-xl bg-stone-50 px-3 text-left text-sm font-semibold text-gray-800 transition-colors active:bg-flame-50';
+  const iconClass = 'h-4 w-4 shrink-0 text-flame-600';
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.button
+            type="button"
+            aria-label="Close reader menu"
+            className="fixed inset-0 z-40 bg-gray-950/25 lg:hidden"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={onClose}
+          />
+          <motion.aside
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mobile-reader-menu-title"
+            className="fixed inset-x-2 bottom-2 z-50 overflow-hidden rounded-2xl bg-white shadow-[0_18px_60px_rgba(28,25,23,0.24)] lg:hidden"
+            initial={{ y: 32, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 32, opacity: 0 }}
+            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+            style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
+          >
+            <div className="flex items-center justify-between px-4 pb-2 pt-4">
+              <div className="min-w-0">
+                <h2 id="mobile-reader-menu-title" className="truncate text-base font-bold text-gray-900">Reader tools</h2>
+                <p className="truncate text-xs text-gray-500">{issue.magazine.name} · Page {currentPage}</p>
+              </div>
+              <button type="button" onClick={onClose} className="flex h-11 w-11 items-center justify-center rounded-xl text-gray-500 active:bg-stone-100" aria-label="Close">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mx-4 grid grid-cols-2 rounded-xl bg-stone-100 p-1" role="tablist" aria-label="Reader tool groups">
+              {(['actions', 'view'] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === value}
+                  onClick={() => setTab(value)}
+                  className={`min-h-10 rounded-lg text-sm font-semibold capitalize transition-all ${tab === value ? 'bg-white text-flame-700 shadow-sm' : 'text-gray-500'}`}
+                >
+                  {value}
+                </button>
+              ))}
+            </div>
+
+            <div className="p-4">
+              {tab === 'actions' ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={onFind} className={actionClass}><Search className={iconClass} />Find text</button>
+                  <button type="button" onClick={onInfo} className={actionClass}><Info className={iconClass} />Issue info</button>
+                  <button type="button" onClick={onSave} className={actionClass}>
+                    <Heart className={`${iconClass} ${saved ? 'fill-flame-600' : ''}`} />{saved ? 'Saved' : 'Save issue'}
+                  </button>
+                  <a href={`/api/issues/${issue.id}/download`} target="_blank" rel="noopener noreferrer" className={actionClass}>
+                    <Download className={iconClass} />Download
+                  </a>
+                  <button type="button" onClick={() => void share(onShareIssue)} className={actionClass}><Share2 className={iconClass} />Share issue</button>
+                  <button type="button" onClick={() => void share(onSharePage)} className={actionClass}><Share2 className={iconClass} />Share page</button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {phone ? (
+                    <fieldset className="rounded-xl bg-stone-50 p-1.5">
+                      <legend className="sr-only">Page layout</legend>
+                      {([
+                        { value: 'single', label: 'Single page', icon: BookOpen },
+                        { value: 'continuous', label: 'Continuous scroll', icon: Rows3 },
+                      ] as const).map(({ value, label, icon: LayoutIcon }) => (
+                        <label key={value} className="flex min-h-12 cursor-pointer items-center gap-3 rounded-lg px-3 text-sm font-semibold text-gray-800 transition-colors active:bg-white">
+                          <LayoutIcon className={iconClass} />
+                          <span className="flex-1">{label}</span>
+                          <input
+                            type="radio"
+                            name="phone-page-layout"
+                            value={value}
+                            checked={viewMode === value}
+                            onChange={() => onViewModeChange(value)}
+                            className="h-5 w-5 accent-flame-600"
+                          />
+                        </label>
+                      ))}
+                    </fieldset>
+                  ) : (
+                    <button type="button" onClick={() => onViewModeChange(viewMode === 'single' ? 'continuous' : 'single')} className={`${actionClass} w-full justify-between`}>
+                      <span className="flex items-center gap-3">{viewMode === 'single' ? <Rows3 className={iconClass} /> : <BookOpen className={iconClass} />}{viewMode === 'single' ? 'Continuous scroll' : 'Single page'}</span>
+                      <span className="text-xs font-medium text-gray-400">Switch</span>
+                    </button>
+                  )}
+                  <div className="flex items-center justify-between rounded-xl bg-stone-50 p-1.5">
+                    <button type="button" onClick={onZoomOut} className="flex h-11 w-11 items-center justify-center rounded-lg text-gray-700 active:bg-white" aria-label="Zoom out"><ZoomOut className="h-5 w-5" /></button>
+                    <span className="min-w-14 text-center text-sm font-semibold tabular-nums text-gray-700">{Math.round(scale * 100)}%</span>
+                    <button type="button" onClick={onZoomIn} className="flex h-11 w-11 items-center justify-center rounded-lg text-gray-700 active:bg-white" aria-label="Zoom in"><ZoomIn className="h-5 w-5" /></button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button" onClick={onFitWidth} disabled={!canFitWidth} className={`${actionClass} justify-center disabled:opacity-40`}>Fit width</button>
+                    <button type="button" onClick={onFullscreen} className={`${actionClass} justify-center`}><Maximize className={iconClass} />Fullscreen</button>
+                  </div>
+                </div>
+              )}
+              <p className="mt-2 min-h-5 text-center text-xs font-medium text-flame-700" aria-live="polite">{feedback}</p>
+            </div>
+          </motion.aside>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function FindTextDrawer({
+  issueId,
+  open,
+  onClose,
+  onSelect,
+}: {
+  issueId: string;
+  open: boolean;
+  onClose: () => void;
+  onSelect: (result: FullTextSearchResult, query: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<FullTextSearchResult[]>([]);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = requestAnimationFrame(() => inputRef.current?.focus());
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => { cancelAnimationFrame(frame); window.removeEventListener('keydown', onKey); };
+  }, [open, onClose]);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const value = query.trim();
+    if (!value) return;
+    setStatus('loading');
+    try {
+      const response = await fetch(`/api/issues/${encodeURIComponent(issueId)}/search?q=${encodeURIComponent(value)}`);
+      if (!response.ok) throw new Error('search failed');
+      const payload = await response.json() as { data: FullTextSearchResult[] };
+      setResults(payload.data);
+      setStatus('done');
+    } catch {
+      setResults([]);
+      setStatus('error');
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.button
+            type="button"
+            aria-label="Close find in text"
+            className="fixed inset-0 z-30 cursor-default bg-gray-950/20"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={onClose}
+          />
+          <motion.aside
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="find-text-title"
+            className="fixed inset-y-0 left-0 z-40 flex w-[min(420px,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-r-2xl border border-flame-100 bg-white shadow-2xl md:inset-y-3 md:left-3 md:rounded-2xl"
+            initial={{ x: -40, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -40, opacity: 0 }}
+            transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <div className="flex items-center justify-between border-b border-flame-100 px-4 py-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-flame-600">Reader search</p>
+                <h2 id="find-text-title" className="font-heading text-lg font-bold text-gray-900">Find in Text</h2>
+              </div>
+              <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 hover:bg-flame-50 hover:text-flame-700" aria-label="Close">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={submit} className="border-b border-gray-100 p-4">
+              <div className="flex gap-2">
+                <label className="relative min-w-0 flex-1">
+                  <span className="sr-only">Text to find</span>
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <input
+                    ref={inputRef}
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    maxLength={200}
+                    placeholder="Search this issue…"
+                    className="min-h-11 w-full rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-3 text-sm text-gray-900 outline-none transition focus:border-flame-400 focus:bg-white focus:ring-2 focus:ring-flame-100"
+                  />
+                </label>
+                <button type="submit" disabled={!query.trim() || status === 'loading'} className="min-h-11 rounded-xl bg-flame-600 px-4 text-sm font-semibold text-white transition hover:bg-flame-700 disabled:opacity-50">
+                  {status === 'loading' ? 'Finding…' : 'Find'}
+                </button>
+              </div>
+            </form>
+
+            <div className="flex-1 overflow-y-auto p-4" aria-live="polite">
+              {status === 'idle' && <p className="text-sm text-gray-500">Searches the indexed text of this issue.</p>}
+              {status === 'error' && <p className="text-sm text-red-600">Search could not load. Please try again.</p>}
+              {status === 'done' && results.length === 0 && <p className="text-sm text-gray-500">No matches found in this issue.</p>}
+              {results.length > 0 && (
+                <div className="space-y-2">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">{results.length} {results.length === 1 ? 'match' : 'matches'}</p>
+                  {results.map((result) => (
+                    <button
+                      key={`${result.issue_id}-${result.page_number}`}
+                      type="button"
+                      onClick={() => onSelect(result, query.trim())}
+                      className="w-full rounded-xl border border-gray-100 bg-gray-50 px-3 py-3 text-left transition hover:border-flame-200 hover:bg-flame-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-flame-500"
+                    >
+                      <span className="text-xs font-semibold text-flame-700">Page {result.page_number}</span>
+                      <span className="mt-1 block text-sm leading-relaxed text-gray-600">{decodeSearchSnippet(result.snippet)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.aside>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
 function IssueInfoDrawer({
   issue,
   currentPage,
@@ -1744,6 +2103,7 @@ function IssueInfoDrawer({
   open,
   bookmarked,
   onBookmark,
+  onFind,
   onClose,
 }: {
   issue: IssueWithMagazine;
@@ -1752,6 +2112,7 @@ function IssueInfoDrawer({
   open: boolean;
   bookmarked: boolean;
   onBookmark: () => void;
+  onFind: () => void;
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -1895,6 +2256,14 @@ function IssueInfoDrawer({
 
               <ReportProblem issueId={issue.id} title={issue.title} page={currentPage} />
               <div className="mt-5 grid gap-2">
+                <button
+                  type="button"
+                  onClick={onFind}
+                  className="flex items-center justify-center gap-2 rounded-xl border border-flame-200 bg-flame-50/60 px-4 py-2.5 text-sm font-semibold text-flame-700 transition-colors hover:bg-flame-100"
+                >
+                  <Search className="h-4 w-4" />
+                  Find in Text
+                </button>
                 <Link
                   href={`/issue/${issue.id}`}
                   onClick={onClose}

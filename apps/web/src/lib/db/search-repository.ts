@@ -10,6 +10,7 @@ import { getLiveHeroIssueIds } from '../hero-issues';
 
 export interface SearchInput {
   query: string;
+  issueId?: string;
   magazineId?: string;
   yearFrom?: number;
   yearTo?: number;
@@ -181,6 +182,10 @@ async function searchWithLikeFallback(input: SearchInput, indexed = false): Prom
 function buildSearchFilters(input: SearchInput, featuredIds: string[]) {
   const clauses: string[] = ["AND trim(i.pdf_url) <> ''"];
   const args: Array<string | number> = [];
+  if (input.issueId) {
+    clauses.push('AND i.id = ?');
+    args.push(input.issueId);
+  }
   if (input.availability !== 'all') {
     const cutoff = readableCutoffIssueMonth();
     clauses.push(input.availability === 'subscriber'
