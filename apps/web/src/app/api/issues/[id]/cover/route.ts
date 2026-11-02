@@ -28,15 +28,18 @@ function dominantColour(bytes: Buffer) {
         buckets.set(key, { count: 1, r, g, b, saturation });
       }
     }
-    const winner = [...buckets.values()].sort((a, b) =>
+    const ranked = [...buckets.values()].sort((a, b) =>
       b.count * (0.65 + b.saturation / b.count) - a.count * (0.65 + a.saturation / a.count),
-    )[0];
+    );
+    const winner = ranked[0];
     if (!winner) return null;
     const r = Math.round(winner.r / winner.count);
     const g = Math.round(winner.g / winner.count);
     const b = Math.round(winner.b / winner.count);
     const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-    return { dominant: `rgb(${r} ${g} ${b})`, foreground: luminance > 0.56 ? '#17212b' : '#fff8e8' };
+    const accentBuckets=[...buckets.values()].sort((a,b)=>(b.saturation/b.count+Math.min(b.count/40,0.25))-(a.saturation/a.count+Math.min(a.count/40,0.25)));
+    const accents=accentBuckets.slice(0,8).map(bucket=>`rgb(${Math.round(bucket.r/bucket.count)} ${Math.round(bucket.g/bucket.count)} ${Math.round(bucket.b/bucket.count)})`);
+    return { dominant: `rgb(${r} ${g} ${b})`, foreground: luminance > 0.56 ? '#17212b' : '#fff8e8', accents };
   });
 }
 
@@ -45,7 +48,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (limited) return limited;
   const response = await deliverCover(request, (await params).id);
   if (!response.ok) return response;
-  if (new URL(request.url).searchParams.get('palette') !== '1') {
+  if (!new URL(request.url).searchParams.has('palette')) {
     // Public covers may be reused briefly in this browser. CDN and admin
     // delivery remain uncached; replacements get a new URL on the homepage.
     const headers = new Headers(response.headers);

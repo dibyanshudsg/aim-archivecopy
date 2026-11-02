@@ -36,6 +36,7 @@ export function Header({
   const mobileMenuOpenRef=useRef(false);
   const [scrollHeaderVisible,setScrollHeaderVisible]=useState(!autoHideOnHome);
   const lastScrollY=useRef(0);
+  const hasLeftInitialTop=useRef(false);
   const scrollFrame=useRef<number|null>(null);
   const reduceMotion = useReducedMotion();
   const router = useRouter();
@@ -55,13 +56,16 @@ export function Header({
   useEffect(()=>{
     if(!autoHideOnHome){setScrollHeaderVisible(true);return;}
     lastScrollY.current=window.scrollY;
+    hasLeftInitialTop.current=false;
     setScrollHeaderVisible(false);
     const handleScroll=()=>{
       if(scrollFrame.current!==null)return;
       scrollFrame.current=window.requestAnimationFrame(()=>{
         const current=window.scrollY;
         const delta=current-lastScrollY.current;
-        if(delta<-3)setScrollHeaderVisible(true);
+        if(current>8)hasLeftInitialTop.current=true;
+        if(current<=1)setScrollHeaderVisible(hasLeftInitialTop.current);
+        else if(delta<-3)setScrollHeaderVisible(true);
         else if(delta>3){setScrollHeaderVisible(false);if(mobileMenuOpenRef.current)setMobileMenuOpen(false);}
         lastScrollY.current=current;
         scrollFrame.current=null;
@@ -131,7 +135,7 @@ export function Header({
     if (!isExternalNavigationHref(href)) router.prefetch(href);
   }
 
-  return (
+  return <>
     <header
       ref={headerRef}
       data-site-header
@@ -431,7 +435,7 @@ export function Header({
         )}
       </AnimatePresence>
     </header>
-  );
+  </>;
 }
 
 function NavigationAnchor({

@@ -9,12 +9,26 @@ import { useUI } from '@/components/ui/toast';
 import type { HeroPromptTemplate } from '@/lib/db';
 import type { AdminIssue } from '@/lib/admin-data';
 import { HERO_PLACEMENT_DEFAULTS, resolveHeroPlacement, type HeroPlacement, type HeroPlacements } from '@/lib/hero-placement';
-import type { HeroSceneTheme } from '@/components/home/this-month-featured';
+import { automaticHeroButtonColour, type HeroSceneTheme } from '@/components/home/this-month-featured';
 import Image from '@/components/magazine/archive-image';
 import { HeroStudioNav } from './hero-studio-nav';
 
 type Artwork = { hash:string;width:number;height:number;theme:string } | null;
 type ArtworkInventoryItem={issueId:string;desktop:Artwork;mobile:Artwork};
+type Tone='auto'|'dark'|'light';
+type SavedHeroTheme=HeroSceneTheme&{preference?:Tone;accentOverride?:string|null;automatic?:{primaryBackground?:string};sampled?:number[]};
+
+function savedTextTone(theme:SavedHeroTheme):Tone {
+  if(theme.textTone)return theme.textTone;
+  if(theme.preference==='auto'||!theme.preference)return 'auto';
+  return theme.text?.toLowerCase()==='#ffffff'?'light':'dark';
+}
+
+function contrastRatio(background:string,foreground:string){
+  const luminance=(colour:string)=>{const rgb=/^rgb\((\d+)\s+(\d+)\s+(\d+)\)$/.exec(colour);const raw=rgb?[Number(rgb[1]),Number(rgb[2]),Number(rgb[3])]:[1,3,5].map(index=>parseInt(colour.slice(index,index+2),16));const channels=raw.map(channel=>channel/255).map(value=>value<=0.04045?value/12.92:((value+0.055)/1.055)**2.4);return channels[0]*0.2126+channels[1]*0.7152+channels[2]*0.0722;};
+  const values=[luminance(background),luminance(foreground)].sort((a,b)=>b-a);
+  return (values[0]+0.05)/(values[1]+0.05);
+}
 export function HeroAdminClient({ initialPrompt, issues, initialArtworkInventory, initialPlacements, initialPromptOpen, initialIssueId, canManage }: { initialPrompt: HeroPromptTemplate; issues:AdminIssue[]; initialArtworkInventory:ArtworkInventoryItem[]; initialPlacements:HeroPlacements; initialPromptOpen:boolean; initialIssueId?:string; canManage: boolean }) {
   const { toast } = useUI();
   const router=useRouter();
@@ -29,6 +43,7 @@ export function HeroAdminClient({ initialPrompt, issues, initialArtworkInventory
   const [assetVersion,setAssetVersion] = useState(0);
   const [artworkInventory,setArtworkInventory] = useState(initialArtworkInventory);
   const [themeBusy,setThemeBusy] = useState(false);
+  const [buttonAccents,setButtonAccents]=useState<string[]>([]);
   const [previewDevice,setPreviewDevice] = useState<'desktop'|'tablet'|'phone'>('desktop');
   const [placementPreview,setPlacementPreview] = useState<HeroPlacement|null>(null);
   const [globalPlacements,setGlobalPlacements]=useState(initialPlacements);
@@ -37,6 +52,7 @@ export function HeroAdminClient({ initialPrompt, issues, initialArtworkInventory
   const hasBuiltInArtwork = selected?.magazines.name === 'All India Magazine' && selected.year === 2026 && selected.month === 10;
 
   useEffect(() => { if (!issueId) return; fetch(`/api/admin/hero-assets?issueId=${encodeURIComponent(issueId)}`,{cache:'no-store'}).then(async response => { if (!response.ok) throw new Error(); return response.json(); }).then(setArtwork).catch(() => setArtwork({desktop:null,mobile:null})); },[issueId,assetVersion]);
+  useEffect(()=>{if(!selected?.cover_image_url){setButtonAccents([]);return;}fetch(`/api/issues/${encodeURIComponent(selected.id)}/cover?palette=2`,{cache:'no-store'}).then(response=>response.ok?response.json():null).then((palette:{accents?:string[]}|null)=>setButtonAccents(palette?.accents??[])).catch(()=>setButtonAccents([]));},[selected?.cover_image_url,selected?.id]);
 
   useEffect(() => {
     if (!assetVersion) return;
@@ -85,25 +101,37 @@ export function HeroAdminClient({ initialPrompt, issues, initialArtworkInventory
     catch(error){toast.error(error instanceof Error?error.message:'Could not remove artwork');} finally{setAssetBusy(null);}
   }
 
-  async function saveTheme(mode:'auto'|'dark'|'light',accent:string|null) {
+  async function saveTextTone(textTone:Tone) {
     const slot=previewDevice==='phone'?'mobile':'desktop';
     if(!selected||!artwork[slot])return; setThemeBusy(true);
-    try{const response=await fetch('/api/admin/hero-assets',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({issueId:selected.id,slot,mode,accent})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Could not save colours');setAssetVersion(Date.now());toast.success('Hero colours saved');}
+    try{const response=await fetch('/api/admin/hero-assets',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({issueId:selected.id,slot,textTone})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Could not save text colour');setAssetVersion(Date.now());toast.success('Text colour saved');}
     catch(error){toast.error(error instanceof Error?error.message:'Could not save colours');}finally{setThemeBusy(false);}
+  }
+
+  async function saveButton(buttonBackground:string|null,buttonTextTone:Tone) {
+    if(!selected||!artwork.desktop)return;setThemeBusy(true);
+    try{const response=await fetch('/api/admin/hero-assets',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({issueId:selected.id,slot:'desktop',buttonBackground,buttonTextTone})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Could not save button colours');setAssetVersion(Date.now());toast.success('Shared button colours saved');}
+    catch(error){toast.error(error instanceof Error?error.message:'Could not save button colours');}finally{setThemeBusy(false);}
   }
 
   async function savePlacement(placement:HeroPlacement) {
     const slot=previewDevice==='phone'?'mobile':'desktop';
     if(!selected||!artwork[slot])return false;setThemeBusy(true);
-    try{const response=await fetch('/api/admin/hero-assets',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({issueId:selected.id,slot,mode:activeTheme.preference??'auto',accent:activeTheme.accentOverride??null,placement:{device:previewDevice,...placement}})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Could not save placement');setGlobalPlacements(data.placements);setPlacementPreview(null);setAssetVersion(Date.now());toast.success(`${previewDevice[0].toUpperCase()+previewDevice.slice(1)} placement saved for all magazines`);return true;}
+    try{const response=await fetch('/api/admin/hero-assets',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({issueId:selected.id,slot,placement:{device:previewDevice,...placement}})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Could not save placement');setGlobalPlacements(data.placements);setPlacementPreview(null);setAssetVersion(Date.now());toast.success(`${previewDevice[0].toUpperCase()+previewDevice.slice(1)} placement saved for all magazines`);return true;}
     catch(error){toast.error(error instanceof Error?error.message:'Could not save placement');return false;}finally{setThemeBusy(false);}
   }
 
   const now=new Date(), future=selected ? selected.year>now.getFullYear() || (selected.year===now.getFullYear()&&selected.month>now.getMonth()+1):false;
-  const desktopTheme=artwork.desktop ? JSON.parse(artwork.desktop.theme) as HeroSceneTheme & {preference?:'auto'|'dark'|'light';accentOverride?:string|null}:{};
-  const mobileTheme=artwork.mobile ? JSON.parse(artwork.mobile.theme) as HeroSceneTheme & {preference?:'auto'|'dark'|'light';accentOverride?:string|null}:{};
+  const desktopTheme=artwork.desktop ? JSON.parse(artwork.desktop.theme) as SavedHeroTheme:{};
+  const mobileTheme=artwork.mobile ? JSON.parse(artwork.mobile.theme) as SavedHeroTheme:{};
   const activeArtwork=previewDevice==='phone'?artwork.mobile:artwork.desktop;
   const activeTheme=previewDevice==='phone'?mobileTheme:desktopTheme;
+  const activeTextTone=savedTextTone(activeTheme);
+  const activeButtonBackgroundOverride=desktopTheme.buttonBackgroundOverride??desktopTheme.accentOverride??null;
+  const activeButtonBackground=activeButtonBackgroundOverride??automaticHeroButtonColour(desktopTheme,desktopTheme.primaryBackground??desktopTheme.automatic?.primaryBackground??'#0e6a9a',buttonAccents);
+  const activeButtonTextTone=desktopTheme.buttonTextTone??'auto';
+  const manualButtonForeground=activeButtonTextTone==='dark'?'#17384d':'#ffffff';
+  const lowButtonContrast=activeButtonTextTone!=='auto'&&contrastRatio(activeButtonBackground,manualButtonForeground)<4.5;
   const desktopCount=artworkInventory.filter(item=>item.desktop).length;
   const mobileCount=artworkInventory.filter(item=>item.mobile).length;
   const completeCount=artworkInventory.filter(item=>item.desktop&&item.mobile).length;
@@ -130,16 +158,23 @@ export function HeroAdminClient({ initialPrompt, issues, initialArtworkInventory
         <div><h2 className="font-semibold text-gray-900">Issue artwork</h2><p className="mt-1 text-sm text-gray-600">Manage artwork for any issue without changing its publication status.</p>
           <div className="mt-4" id="hero-issue"><HeroIssuePicker issues={ordered} inventory={artworkInventory} value={issueId} onChange={value=>{setPlacementPreview(null);setIssueId(value);}} /></div>
           {selected&&<div className="mt-4 rounded-xl bg-gray-50 p-3 text-sm text-gray-700"><p className="font-semibold">{selected.title}</p><p className="mt-1 text-xs">{future?'Future · hidden publicly until its month':'Available issue'} · {selected.is_published?'Published':'Draft'}</p></div>}
-          <div className="mt-4 space-y-3">{(['desktop','mobile'] as const).map(slot=><div key={slot} className="rounded-xl border border-gray-200 p-3"><div className="flex items-center gap-2 text-sm font-semibold">{slot==='desktop'?<Monitor className="h-4 w-4"/>:<Smartphone className="h-4 w-4"/>}{slot==='desktop'?'Desktop / tablet':'Phone'}<span className="ml-auto text-xs font-normal text-gray-500">{artwork[slot]?`${artwork[slot]!.width}×${artwork[slot]!.height}`:hasBuiltInArtwork?'Built-in image':'Missing'}</span></div>{canManage&&<div className="mt-3 flex gap-2"><label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-flame-600 px-3 py-2 text-xs font-semibold text-white"><Upload className="h-3.5 w-3.5"/>{assetBusy===slot?'Uploading…':artwork[slot]?'Replace':'Upload'}<input type="file" accept="image/png,image/jpeg,image/webp" disabled={assetBusy!==null} onChange={event=>void upload(slot,event.target.files?.[0]??null)} className="sr-only"/></label>{artwork[slot]&&<button onClick={()=>void remove(slot)} disabled={assetBusy!==null} className="px-2 text-xs font-semibold text-red-600">Remove</button>}</div>}</div>)}</div>
+          <div className="mt-4 space-y-3">{(['desktop','mobile'] as const).map(slot=><div key={slot} className="rounded-xl border border-gray-200 p-3"><div className="flex items-center gap-2 text-sm font-semibold">{slot==='desktop'?<Monitor className="h-4 w-4"/>:<Smartphone className="h-4 w-4"/>}{slot==='desktop'?'Desktop / tablet':'Phone'}<span className="ml-auto text-xs font-normal text-gray-500">{artwork[slot]?`${artwork[slot]!.width}×${artwork[slot]!.height}`:hasBuiltInArtwork?'Built-in image':'Missing'}</span></div>{canManage&&<div className="mt-3 flex gap-2"><label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-flame-600 px-3 py-2 text-xs font-semibold text-white"><Upload className="h-3.5 w-3.5"/>{assetBusy===slot?'Uploading…':artwork[slot]?'Replace':'Upload'}<input type="file" accept="image/png,image/jpeg,image/webp,image/avif" disabled={assetBusy!==null} onChange={event=>void upload(slot,event.target.files?.[0]??null)} className="sr-only"/></label>{artwork[slot]&&<button onClick={()=>void remove(slot)} disabled={assetBusy!==null} className="px-2 text-xs font-semibold text-red-600">Remove</button>}</div>}</div>)}</div>
         </div>
         <div className="min-w-0">
           <div className="mb-2 flex items-center justify-between gap-3"><h3 className="text-sm font-semibold text-gray-900">Selected hero preview</h3>{selected&&(artwork.desktop||hasBuiltInArtwork)?<a href={`/admin/hero-preview/${selected.id}?device=${previewDevice}`} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 hover:border-flame-200 hover:text-flame-700"><ExternalLink className="h-3.5 w-3.5"/>Open full preview</a>:<span className="text-xs text-gray-500">Shared public renderer</span>}</div>
           {(!artwork.desktop&&!hasBuiltInArtwork)||!selected?<div className="flex aspect-[1672/941] items-center justify-center rounded-2xl bg-gray-100 text-sm text-gray-500">Upload desktop artwork to preview</div>:<DevicePreviewFrame issueId={selected.id} device={previewDevice} version={assetVersion} placement={placementPreview}/>}
-          {artwork.desktop&&<div className="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-200 pt-3" aria-label="Hero controls">
-            <span className="mr-1 inline-flex items-center gap-2 text-xs font-semibold text-gray-700"><Palette className="h-4 w-4"/>Colours</span>
-            {(['auto','dark','light'] as const).map(mode=><button key={mode} type="button" disabled={themeBusy||!canManage||!activeArtwork} onClick={()=>void saveTheme(mode,activeTheme.accentOverride??null)} className={`min-h-9 rounded-lg px-3 text-xs font-semibold capitalize ${activeTheme.preference===mode||(!activeTheme.preference&&mode==='auto')?'bg-flame-600 text-white':'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'} disabled:opacity-50`}>{mode==='dark'?'Prefer dark':mode==='light'?'Prefer light':'Auto'}</button>)}
-            <label className="ml-1 inline-flex min-h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700">Accent<input type="color" value={activeTheme.accentOverride??activeTheme.accent??'#d89b20'} disabled={themeBusy||!canManage||!activeArtwork} onChange={event=>void saveTheme(activeTheme.preference??'auto',event.target.value)} className="h-6 w-7 cursor-pointer border-0 bg-transparent p-0"/></label>
-            {activeTheme.accentOverride&&<button type="button" disabled={themeBusy||!canManage||!activeArtwork} onClick={()=>void saveTheme(activeTheme.preference??'auto',null)} className="min-h-9 px-2 text-xs font-semibold text-flame-700 disabled:opacity-50">Reset accent</button>}
+          {(artwork.desktop||artwork.mobile)&&<div className="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-200 pt-3" aria-label="Hero controls">
+            <span className="mr-1 inline-flex items-center gap-2 text-xs font-semibold text-gray-700"><Palette className="h-4 w-4"/>{previewDevice==='phone'?'Phone text · shared button':'Desktop / tablet text · shared button'}</span>
+            <span className="h-0 basis-full" aria-hidden="true"/>
+            <span className="text-xs font-semibold text-gray-700">Content text</span>
+            {(['auto','dark','light'] as const).map(tone=><button key={tone} type="button" disabled={themeBusy||!canManage||!activeArtwork} onClick={()=>void saveTextTone(tone)} className={`min-h-9 rounded-lg px-3 text-xs font-semibold capitalize ${activeTextTone===tone?'bg-flame-600 text-white':'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'} disabled:opacity-50`}>{tone==='auto'?'Auto text':`${tone} text`}</button>)}
+            <span className="h-0 basis-full" aria-hidden="true"/>
+            <label className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700">Button background<input type="color" value={activeButtonBackground} disabled={themeBusy||!canManage||!artwork.desktop} onChange={event=>void saveButton(event.target.value,activeButtonTextTone)} className="h-6 w-7 cursor-pointer border-0 bg-transparent p-0"/></label>
+            {activeButtonBackgroundOverride&&<button type="button" disabled={themeBusy||!canManage||!artwork.desktop} onClick={()=>void saveButton(null,activeButtonTextTone)} className="min-h-9 px-2 text-xs font-semibold text-flame-700 disabled:opacity-50">Reset button</button>}
+            <span className="h-0 basis-full" aria-hidden="true"/>
+            <span className="text-xs font-semibold text-gray-700">Button text</span>
+            {(['auto','dark','light'] as const).map(tone=><button key={tone} type="button" disabled={themeBusy||!canManage||!artwork.desktop} onClick={()=>void saveButton(activeButtonBackgroundOverride,tone)} className={`min-h-9 rounded-lg px-3 text-xs font-semibold capitalize ${activeButtonTextTone===tone?'bg-flame-600 text-white':'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'} disabled:opacity-50`}>{tone==='auto'?'Auto':tone}</button>)}
+            {lowButtonContrast&&<p className="basis-full text-xs font-medium text-amber-700">Selected button text has low contrast. Use Auto or choose the opposite tone.</p>}
             <span className="h-0 basis-full" aria-hidden="true"/>
             <span className="text-xs font-semibold text-gray-700">Device</span>
             {([{id:'desktop',label:'Desktop',icon:Monitor},{id:'tablet',label:'Tablet',icon:Tablet},{id:'phone',label:'Phone',icon:Smartphone}] as const).map(option=><button key={option.id} type="button" onClick={()=>{setPlacementPreview(null);setPreviewDevice(option.id);}} aria-pressed={previewDevice===option.id} className={`inline-flex min-h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold ${previewDevice===option.id?'bg-slate-900 text-white':'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'}`}><option.icon className="h-3.5 w-3.5"/>{option.label}</button>)}

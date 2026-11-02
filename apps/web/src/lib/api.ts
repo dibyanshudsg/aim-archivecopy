@@ -58,6 +58,10 @@ export interface HeroPresentationTheme {
   primaryBackground?: string;
   primaryForeground?: string;
   scrim?: string;
+  textTone?: 'auto' | 'dark' | 'light';
+  buttonBackgroundOverride?: string | null;
+  buttonTextTone?: 'auto' | 'dark' | 'light';
+  sampled?: [number, number, number];
   layout?: Partial<Record<HeroDevice, Partial<HeroPlacement>>>;
 }
 

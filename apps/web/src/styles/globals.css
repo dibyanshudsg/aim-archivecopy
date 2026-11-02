@@ -256,14 +256,6 @@ html {
   pointer-events: none;
 }
 
-.scenic-hero-light {
-  z-index: 1;
-  background:
-    linear-gradient(90deg, transparent 0%, transparent 43%, rgb(248 252 253 / 0.12) 49%, rgb(255 255 255 / 0.46) 71%, rgb(255 252 241 / 0.3) 100%),
-    linear-gradient(180deg, rgb(13 70 107 / 0.03), transparent 52%, rgb(21 63 91 / 0.08));
-  pointer-events: none;
-}
-
 .scenic-hero-copy {
   z-index: 3;
 }
@@ -288,7 +280,25 @@ html {
   transform-origin: center bottom;
 }
 
+.scenic-book-stage-settle {
+  animation: scenic-book-stage-settle 2s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: scale;
+}
+
+@keyframes scenic-book-stage-settle {
+  from {
+    scale: 0.84;
+  }
+  to {
+    scale: 1;
+  }
+}
+
 @media (min-width: 768px) and (max-width: 1199px) {
+  .scenic-hero::after {
+    height: 26%;
+  }
+
   .scenic-hero-background {
     object-position: center;
   }
@@ -474,6 +484,7 @@ html {
   .scenic-primary-action,
   .scenic-secondary-action { transition: none; }
   .scenic-book-stage,
+  .scenic-book-stage-settle,
   .scenic-artboard-enter {
     opacity: 1;
     animation: none;

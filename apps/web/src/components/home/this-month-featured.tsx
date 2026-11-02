@@ -39,7 +39,7 @@ interface ThisMonthFeaturedProps {
   archiveIssues: HeroPickerIssue[];
 }
 
-type CoverPalette = { dominant: string; foreground: string };
+type CoverPalette = { dominant: string; foreground: string; accents?: string[] };
 const DEFAULT_COVER_PALETTE: CoverPalette = { dominant: '#0e3f63', foreground: '#f6e8c0' };
 const coverPaletteCache = new Map<string, CoverPalette>();
 function darkCoverColour(colour: string, maxLuminance: number): string {
@@ -63,18 +63,54 @@ function darkCoverColour(colour: string, maxLuminance: number): string {
   }
   return `rgb(${channels.map(channel=>Math.round(channel*low)).join(' ')})`;
 }
-function heroColours(palette: CoverPalette, theme?: HeroPresentationTheme | null) {
+function automaticForeground(colour:string):string {
+  const rgb=/^rgb\((\d+)\s+(\d+)\s+(\d+)\)$/.exec(colour);
+  const hex=/^#([0-9a-f]{6})$/i.exec(colour);
+  const channels=rgb?[Number(rgb[1]),Number(rgb[2]),Number(rgb[3])]:hex?[0,2,4].map(index=>parseInt(hex[1].slice(index,index+2),16)):null;
+  if(!channels)return '#ffffff';
+  const linear=channels.map(channel=>{const value=channel/255;return value<=0.04045?value/12.92:((value+0.055)/1.055)**2.4;});
+  const luminance=0.2126*linear[0]+0.7152*linear[1]+0.0722*linear[2];
+  return 1.05/(luminance+0.05)>=(luminance+0.05)/0.089?'#ffffff':'#17384d';
+}
+function colourChannels(colour:string):number[]|null {
+  const rgb=/^rgb\((\d+)\s+(\d+)\s+(\d+)\)$/.exec(colour);
+  const hex=/^#([0-9a-f]{6})$/i.exec(colour);
+  return rgb?[Number(rgb[1]),Number(rgb[2]),Number(rgb[3])]:hex?[0,2,4].map(index=>parseInt(hex[1].slice(index,index+2),16)):null;
+}
+export function automaticHeroButtonColour(theme?:HeroPresentationTheme|null,fallback=DEFAULT_COVER_PALETTE.dominant,accents:string[]=[]):string {
+  const sampled=theme?.sampled;
+  const sampledColour=sampled?.length===3&&sampled.every(Number.isFinite)?`rgb(${sampled.map(channel=>Math.max(0,Math.min(255,Math.round(channel)))).join(' ')})`:fallback;
+  const background=colourChannels(sampledColour);
+  const candidates=accents.map(colour=>({colour,channels:colourChannels(colour)})).filter((candidate):candidate is {colour:string;channels:number[]}=>Boolean(candidate.channels));
+  if(background&&candidates.length){
+    const selected=candidates.sort((a,b)=>{
+      const score=(channels:number[])=>{const max=Math.max(...channels),min=Math.min(...channels);const saturation=max?1-min/max:0;const distance=Math.hypot(...channels.map((channel,index)=>channel-background[index]))/441.7;return saturation*0.6+distance*0.7;};
+      return score(b.channels)-score(a.channels);
+    })[0].channels;
+    return `#${selected.map(channel=>channel.toString(16).padStart(2,'0')).join('')}`;
+  }
+  const colour=darkCoverColour(sampledColour,0.14);
+  const rgb=/^rgb\((\d+)\s+(\d+)\s+(\d+)\)$/.exec(colour);
+  return rgb?`#${[rgb[1],rgb[2],rgb[3]].map(channel=>Number(channel).toString(16).padStart(2,'0')).join('')}`:colour;
+}
+function heroColours(palette: CoverPalette, theme?: HeroPresentationTheme | null, buttonTheme:HeroPresentationTheme|null|undefined=theme, phoneOnWhite=false) {
   const dominant=palette.dominant;
   const savedTheme=theme as (HeroPresentationTheme & {preference?:string;accentOverride?:string|null}) | null | undefined;
-  const useCoverColours=(savedTheme?.preference===undefined||savedTheme.preference==='auto')&&theme?.text?.toLowerCase()!=='#ffffff';
+  const savedButtonTheme=buttonTheme as (HeroPresentationTheme & {accentOverride?:string|null}) | null | undefined;
+  const hasSavedColours=Boolean(savedTheme?.textTone||savedTheme?.preference||savedTheme?.text);
   const heading=darkCoverColour(dominant,0.14);
   const body=darkCoverColour(dominant,0.16);
-  const button=darkCoverColour(dominant,0.14);
+  const automaticContent=automaticHeroButtonColour(theme,dominant);
+  const useAutomaticPhoneText=phoneOnWhite&&(!savedTheme?.textTone||savedTheme.textTone==='auto');
+  const automaticButton=automaticHeroButtonColour(buttonTheme,dominant,palette.accents);
+  const buttonOverride=savedButtonTheme?.buttonBackgroundOverride??savedButtonTheme?.accentOverride;
+  const button=buttonOverride??automaticButton;
+  const buttonForeground=savedButtonTheme?.buttonTextTone==='dark'?'#17384d':savedButtonTheme?.buttonTextTone==='light'?'#ffffff':automaticForeground(button);
   return {
-    heading:useCoverColours?heading:theme?.text??heading,
-    body:useCoverColours?body:theme?.mutedText??body,
-    button:useCoverColours&&!savedTheme?.accentOverride?button:theme?.primaryBackground??button,
-    buttonForeground:useCoverColours&&!savedTheme?.accentOverride?'#fff':theme?.primaryForeground??'#fff',
+    heading:useAutomaticPhoneText?automaticContent:hasSavedColours?theme?.text??heading:heading,
+    body:useAutomaticPhoneText?automaticContent:hasSavedColours?theme?.mutedText??body:body,
+    button,
+    buttonForeground,
   };
 }
 const TRANSPARENT_PIXEL = 'data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=';
@@ -118,7 +154,7 @@ function useCoverPalette(coverUrl: string | null, coverLoaded: boolean): CoverPa
     if (!coverLoaded) return;
     let cancelled = false;
     const separator = coverUrl.includes('?') ? '&' : '?';
-    fetch(`${coverUrl}${separator}palette=1`)
+    fetch(`${coverUrl}${separator}palette=2`)
       .then((response) => response.ok ? response.json() as Promise<CoverPalette | null> : null)
       .then((nextPalette) => {
         if (!nextPalette || cancelled) return;
@@ -397,7 +433,7 @@ export function ThisMonthFeatured({
                     center:{x:'0%'},
                     exit:(direction:number)=>({x:reduceMotion||direction===0?'0%':`${direction*-100}%`}),
                   }}
-                  transition={{duration:reduceMotion?0.01:0.28,ease:[0.22,1,0.36,1]}}
+                  transition={{duration:reduceMotion?0.01:0.55,ease:[0.16,1,0.3,1]}}
                   className="touch-pan-y"
                   onTouchStart={onHeroTouchStart}
                   onTouchEnd={onHeroTouchEnd}
@@ -406,6 +442,14 @@ export function ThisMonthFeatured({
                   <FeaturedSlide issue={currentIssue!} animateEntrance={!heroHasEntered} onHeroReady={() => setHeroHasEntered(true)} />
                 </motion.div>
               </AnimatePresence>
+              <button type="button" onClick={goPrev} disabled={currentIndex<=0} aria-label="Show previous featured issue" className="group/left-edge absolute inset-y-0 left-0 z-20 hidden w-[11%] items-center justify-start pl-3 text-flame-600 md:flex lg:pl-5 disabled:cursor-not-allowed disabled:text-flame-300">
+                <span aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-flame-500/20 via-flame-300/8 to-transparent opacity-0 transition-opacity duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/left-edge:opacity-100 group-focus-visible/left-edge:opacity-100"/>
+                <ChevronLeft className="relative h-20 w-12 -translate-x-3 scale-y-150 opacity-0 drop-shadow-[0_2px_2px_rgba(255,255,255,0.95)] transition-[opacity,transform,color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/left-edge:translate-x-0 group-hover/left-edge:opacity-100 group-focus-visible/left-edge:translate-x-0 group-focus-visible/left-edge:opacity-100" strokeWidth={1.25}/>
+              </button>
+              <button type="button" onClick={goNext} disabled={currentIndex>=visibleIssues.length-1} aria-label="Show next featured issue" className="group/right-edge absolute inset-y-0 right-0 z-20 hidden w-[11%] items-center justify-end pr-3 text-flame-600 md:flex lg:pr-5 disabled:cursor-not-allowed disabled:text-flame-300">
+                <span aria-hidden="true" className="absolute inset-0 bg-gradient-to-l from-flame-500/20 via-flame-300/8 to-transparent opacity-0 transition-opacity duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/right-edge:opacity-100 group-focus-visible/right-edge:opacity-100"/>
+                <ChevronRight className="relative h-20 w-12 translate-x-3 scale-y-150 opacity-0 drop-shadow-[0_2px_2px_rgba(255,255,255,0.95)] transition-[opacity,transform,color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/right-edge:translate-x-0 group-hover/right-edge:opacity-100 group-focus-visible/right-edge:translate-x-0 group-focus-visible/right-edge:opacity-100" strokeWidth={1.25}/>
+              </button>
             </div>
 
             <CarouselControls
@@ -780,6 +824,7 @@ function FeaturedSlide({ issue, animateEntrance, onHeroReady }: { issue: ApiIssu
           animateEntrance={animateEntrance}
           backgroundSrc={issue.hero?.mobileUrl ?? undefined}
           theme={issue.hero?.mobileTheme ?? issue.hero?.desktopTheme}
+          buttonTheme={issue.hero?.desktopTheme}
           coverPalette={coverPalette}
           onCoverLoad={onCoverLoad}
           onReady={() => {
@@ -850,15 +895,15 @@ function ScenicBookCover({issue,sizes,phone=false,onCoverLoad}:{issue:ApiIssue;s
   </span>;
 }
 
-function MobileScenicHero({ issue, eyebrow, monthName, bookmarked, onBookmark, onPreview, onBookOpen, animateEntrance, onReady, backgroundSrc, theme, coverPalette, onCoverLoad }: {
-  issue: ApiIssue; eyebrow: string; monthName: string; bookmarked: boolean; onBookmark: () => void; onPreview: () => void; onBookOpen:()=>void; animateEntrance: boolean; onReady: () => void; backgroundSrc?: string; theme?:HeroSceneTheme|null; coverPalette: CoverPalette; onCoverLoad:()=>void;
+function MobileScenicHero({ issue, eyebrow, monthName, bookmarked, onBookmark, onPreview, onBookOpen, animateEntrance, onReady, backgroundSrc, theme, buttonTheme, coverPalette, onCoverLoad }: {
+  issue: ApiIssue; eyebrow: string; monthName: string; bookmarked: boolean; onBookmark: () => void; onPreview: () => void; onBookOpen:()=>void; animateEntrance: boolean; onReady: () => void; backgroundSrc?: string; theme?:HeroSceneTheme|null; buttonTheme?:HeroSceneTheme|null; coverPalette: CoverPalette; onCoverLoad:()=>void;
 }) {
   const animateOnMount=useRef(animateEntrance).current;
   const [sceneReady,setSceneReady]=useState(!animateEntrance);
   const [previewPlacement,setPreviewPlacement]=useState<HeroPlacement|null>(null);
   useEffect(()=>{const receive=(event:MessageEvent)=>{if(event.origin!==window.location.origin||event.data?.type!=='hero-placement-preview'||event.data.device!=='phone')return;setPreviewPlacement(event.data.placement??null);};window.addEventListener('message',receive);return()=>window.removeEventListener('message',receive);},[]);
   const placement=previewPlacement??resolveHeroPlacement(theme??undefined,'phone');
-  const issueColours=heroColours(coverPalette,theme);
+  const issueColours=heroColours(coverPalette,theme,buttonTheme,true);
   const sceneVariables={
     '--hero-focal-x-phone':`${placement.focalX}%`,'--hero-focal-y-phone':`${placement.focalY}%`,
     '--hero-focal-x-phone-negative':`${-placement.focalX}%`,'--hero-focal-y-phone-negative':`${-placement.focalY}%`,
@@ -867,7 +912,6 @@ function MobileScenicHero({ issue, eyebrow, monthName, bookmarked, onBookmark, o
     <div style={sceneVariables} className="scenic-phone-scene relative h-[720px] overflow-hidden">
       <div className={cn('scenic-artboard scenic-artboard-phone',animateOnMount&&sceneReady&&'scenic-artboard-enter')}>
         <ScenicBackground src={backgroundSrc ?? aimOctoberPhoneHero} media="(max-width: 767px)" sizes="100vw" className="object-cover" onReady={()=>{setSceneReady(true);onReady();}} />
-        <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-transparent to-transparent" aria-hidden="true" />
         <div className="absolute inset-x-0 bottom-0 h-[24%] bg-gradient-to-b from-transparent via-white/65 to-white" aria-hidden="true" />
         <button type="button" onClick={onBookOpen} disabled={!issue.pdf_url} aria-label={issue.pdf_url?`Read ${issue.title}`:`${issue.title} is not yet readable`} style={{left:`${placement.bookX}%`,bottom:`${100-placement.baselineY}%`,width:`${52*placement.bookScale/100}%`,transform:'translateX(-50%)'}} className="scenic-book-stage absolute z-[3] aspect-[2/3] disabled:cursor-not-allowed">
           <span className="scenic-book-shadow" aria-hidden="true" />
@@ -966,7 +1010,7 @@ export function DesktopScenicHero({
   }
 
   return (
-    <div data-hero-swipe style={sceneVariables} className={cn('scenic-hero relative hidden overflow-hidden md:block', compact ? 'min-h-[480px]' : 'min-h-[720px]')}>
+    <div data-hero-swipe style={sceneVariables} className={cn('scenic-hero relative hidden overflow-hidden md:block', compact ? 'min-h-[480px]' : 'min-h-[max(720px,56.28vw)]')}>
       <div className={cn('scenic-artboard scenic-artboard-landscape',animateOnMount&&backgroundReady&&'scenic-artboard-enter')}>
         <ScenicBackground
           src={backgroundSrc}
@@ -978,7 +1022,6 @@ export function DesktopScenicHero({
             onReady();
           }}
         />
-        <div className="scenic-hero-light absolute inset-0" style={theme.scrim ? { background: theme.scrim } : undefined} aria-hidden="true" />
         <button
           ref={bookRef}
           type="button"
@@ -987,7 +1030,7 @@ export function DesktopScenicHero({
           onPointerMove={moveBook}
           onPointerLeave={resetBook}
           aria-label={issue.pdf_url?`Read ${issue.title}`:`${issue.title} is not yet readable`}
-          className="scenic-book-stage scenic-book-stage-positioned focus-visible:outline-none disabled:cursor-not-allowed"
+          className="scenic-book-stage scenic-book-stage-positioned scenic-book-stage-settle focus-visible:outline-none disabled:cursor-not-allowed"
         >
           <span className="scenic-book-shadow" aria-hidden="true" />
           <span className="scenic-book block h-full w-full" style={{ '--book-spine-color': coverPalette.dominant, '--book-spine-foreground': coverPalette.foreground } as React.CSSProperties}>

@@ -184,7 +184,7 @@ export function HomeClient({
       <Header navigation={navigation} autoHideOnHome />
 
       <main className="flex-1">
-        <section className="relative overflow-hidden bg-gradient-to-b from-[#fffaf1] via-[#fffdf8] to-white px-4 pb-12 pt-5 sm:px-6 sm:pb-20 sm:pt-9 lg:px-0 lg:pt-0">
+        <section className="relative overflow-hidden bg-gradient-to-b from-[#fffaf1] via-[#fffdf8] to-white px-4 pb-12 pt-5 sm:px-6 sm:pb-20 sm:pt-9 md:px-0 md:pt-0">
           <ThisMonthFeatured
             magazines={carouselMagazines}
             issues={carouselIssues}
