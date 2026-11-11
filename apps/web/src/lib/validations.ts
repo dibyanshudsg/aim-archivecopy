@@ -54,13 +54,17 @@ export const issuesQuerySchema = z.object({
 });
 
 // Search query params
-export const searchQuerySchema = z.object({
-  q: z.string().trim().min(1).max(500),
-  magazine_id: z.string().uuid().optional(),
-  year_from: z.coerce.number().int().min(1950).max(2100).optional(),
-  year_to: z.coerce.number().int().min(1950).max(2100).optional(),
-  availability: z.enum(['read', 'subscriber', 'all']).default('read'),
-}).refine((value) => !value.year_from || !value.year_to || value.year_from <= value.year_to, { message: 'Start year must not exceed end year' });
+export const searchQuerySchema = z
+  .object({
+    q: z.string().trim().min(1).max(500),
+    magazine_id: z.string().uuid().optional(),
+    year_from: z.coerce.number().int().min(1950).max(2100).optional(),
+    year_to: z.coerce.number().int().min(1950).max(2100).optional(),
+    availability: z.enum(['read', 'subscriber', 'all']).default('read'),
+  })
+  .refine((value) => !value.year_from || !value.year_to || value.year_from <= value.year_to, {
+    message: 'Start year must not exceed end year',
+  });
 
 const optionalUrl = z
   .string()
@@ -82,8 +86,21 @@ export const siteSettingsSchema = z.object({
   feedback_form_edit_url: optionalUrl,
 });
 
-const navigationMenuKeySchema = z.enum(['header', 'mobile', 'footer_archive', 'footer_magazines', 'footer_about']);
-const navigationLinkTypeSchema = z.enum(['route', 'magazine', 'topic', 'issue', 'external', 'feedback']);
+const navigationMenuKeySchema = z.enum([
+  'header',
+  'mobile',
+  'footer_archive',
+  'footer_magazines',
+  'footer_about',
+]);
+const navigationLinkTypeSchema = z.enum([
+  'route',
+  'magazine',
+  'topic',
+  'issue',
+  'external',
+  'feedback',
+]);
 
 export const navigationItemSchema = z.object({
   menu_key: navigationMenuKeySchema,
@@ -92,7 +109,7 @@ export const navigationItemSchema = z.object({
   route_key: z.string().trim().max(80).nullable().optional(),
   target_id: z.string().trim().max(300).nullable().optional(),
   href: z.string().trim().max(2000).nullable().optional(),
-  params: z.record(z.string().trim().max(120)).default({}),
+  params: z.record(z.string(), z.string().trim().max(120)).default({}),
   sort_order: z.number().int().min(0).max(1000).optional(),
   is_published: z.boolean().default(true),
   opens_new_tab: z.boolean().default(false),
@@ -118,5 +135,5 @@ export function parseSearchParams(params: URLSearchParams): Record<string, strin
 
 /** Format Zod errors into a readable message */
 export function formatZodError(error: z.ZodError): string {
-  return error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ');
+  return error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ');
 }
