@@ -269,7 +269,7 @@ function AdminDashboardFrame({
         {/* User info + sign out */}
         <div className={cn('shrink-0 border-t border-gray-100 bg-white', collapsed ? 'p-2' : 'p-4')}>
           <Link href="/admin/account" onClick={() => beginNavigation('/admin/account')} title={collapsed ? 'Your profile' : undefined} aria-label={collapsed ? 'Your profile' : undefined} className={cn('mb-2 flex items-center rounded-xl transition-colors hover:bg-flame-50 focus-visible:outline-2 focus-visible:outline-flame-600', collapsed ? 'justify-center p-1' : 'gap-3 p-2')}>
-            <Image src={`/api/admin/avatar?v=${avatarVersion}`} unoptimized alt="" width={36} height={36} className="h-9 w-9 shrink-0 rounded-full bg-flame-50 object-cover" />
+            <Image src={`/api/admin/avatar?v=${avatarVersion}`} unoptimized alt="" width={36} height={36} style={{ width: 36, height: 36 }} className="shrink-0 rounded-full bg-flame-50 object-cover" />
             {!collapsed && <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-gray-900">{admin.name}</span><span className="block truncate text-xs text-gray-500">{admin.email}</span></span>}
           </Link>
           <button
@@ -308,7 +308,7 @@ function AdminDashboardFrame({
             </button>
             <span className="font-heading text-sm font-bold text-gray-900">Admin</span>
           </div>
-          <Link href="/admin/account" aria-label="Your profile" className="rounded-full focus-visible:outline-2 focus-visible:outline-flame-600"><Image src={`/api/admin/avatar?v=${avatarVersion}`} unoptimized alt="" width={36} height={36} className="h-9 w-9 rounded-full bg-flame-50 object-cover" /></Link>
+          <Link href="/admin/account" aria-label="Your profile" className="rounded-full focus-visible:outline-2 focus-visible:outline-flame-600"><Image src={`/api/admin/avatar?v=${avatarVersion}`} unoptimized alt="" width={36} height={36} style={{ width: 36, height: 36 }} className="rounded-full bg-flame-50 object-cover" /></Link>
         </header>
 
         {/* Mobile sidebar overlay */}

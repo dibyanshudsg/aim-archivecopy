@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
   if (!body.ok) return body.response;
   const parsed = schema.safeParse(body.value);
   if (!parsed.success) return NextResponse.json({ error: 'Enter a name, email and role.' }, { status: 400 });
+  if (parsed.data.roleId === 'owner') return NextResponse.json({ error: 'Owner is a protected account and cannot be assigned.' }, { status: 400 });
   if (!(await listAdminRoles()).some(role => role.id === parsed.data.roleId)) return NextResponse.json({ error: 'Choose an existing role.' }, { status: 400 });
   const temporaryPassword = randomBytes(24).toString('base64url');
   try {

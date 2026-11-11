@@ -24,6 +24,8 @@ try {
   assert.equal((await applyMigrations(fresh, migrations)).applied.length, migrations.length);
   assert.equal(await count(fresh, 'navigation_menus'), 5);
   assert.equal(await count(fresh, 'navigation_items'), 15);
+  await fresh.execute("INSERT INTO admins(id,email,name,created_at,role_id) VALUES('owner-one','owner-one@example.test','Owner One','now','owner')");
+  await assert.rejects(fresh.execute("INSERT INTO admins(id,email,name,created_at,role_id) VALUES('owner-two','owner-two@example.test','Owner Two','now','owner')"));
   assert.deepEqual((await applyMigrations(fresh, migrations)).applied, []);
   await seed(fresh);
   assert.equal(await count(fresh, 'issue_text_fts'), 1);

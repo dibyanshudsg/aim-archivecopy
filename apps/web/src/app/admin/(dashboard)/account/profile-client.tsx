@@ -77,7 +77,7 @@ export function AdminProfileClient({ account }: { account: ProfileAccount }) {
       <div className="h-24 bg-gradient-to-r from-gold-100 via-orange-50 to-flame-100" />
       <div className="px-6 pb-7 sm:px-8">
         <div className="-mt-10 flex flex-wrap items-end justify-between gap-4">
-          <Image src={`/api/admin/avatar?v=${avatarVersion}`} alt={`${name}'s profile photo`} width={88} height={88} unoptimized className="h-20 w-20 rounded-full border-4 border-white bg-orange-50 object-cover shadow-sm" />
+          <Image src={`/api/admin/avatar?v=${avatarVersion}`} alt={`${name}'s profile photo`} width={80} height={80} unoptimized style={{ width: 80, height: 80 }} className="rounded-full border-4 border-white bg-orange-50 object-cover shadow-sm" />
           <div className="flex flex-wrap gap-2">
             <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" id="profile-avatar-upload" onChange={(event) => uploadAvatar(event.target.files?.[0])} />
             <button type="button" disabled={savingAvatar} onClick={() => fileRef.current?.click()} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-flame-600 px-4 text-sm font-semibold text-white hover:bg-flame-700 disabled:opacity-50"><Camera className="h-4 w-4" />{savingAvatar ? 'Updating…' : 'Upload photo'}</button>

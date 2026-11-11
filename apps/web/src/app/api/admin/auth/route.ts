@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSessionToken, revokeCurrentSession, verifyAdmin, ADMIN_COOKIE, SESSION_TTL_SECONDS } from '@/lib/admin-auth';
-import { auditAdmin, findAdminAccountByEmail, publicAdmin } from '@/lib/db/admin-accounts';
+import { auditAdmin, findAdminAccountByEmail, isRemovedAdminEmail, publicAdmin } from '@/lib/db/admin-accounts';
 import { getDb } from '@/lib/db/client';
 import { verifyAdminPassword } from '@/lib/admin-password';
 import { adminLoginRateLimit } from '@/lib/rate-limit';
@@ -44,6 +44,9 @@ export async function POST(request: NextRequest) {
   if (limited) return limited;
 
   let admin = await findAdminAccountByEmail(email);
+  if (!admin && await isRemovedAdminEmail(email)) {
+    return NextResponse.json({ error: 'This admin account has been removed. Contact an Owner if you believe this is a mistake.', code: 'ACCOUNT_REMOVED' }, { status: 403 });
+  }
   const valid = admin?.passwordHash ? await verifyAdminPassword(password, admin.passwordHash)
     : Boolean(process.env.ADMIN_LEGACY_ENROLLMENT === '1' && process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD);
   if (!admin || !admin.isActive || !valid) {

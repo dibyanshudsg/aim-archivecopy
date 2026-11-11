@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { getDb, createId, nowIso } from './client';
 import { ADMIN_PERMISSIONS, type AdminPermission } from '../admin-permissions';
 
@@ -41,6 +42,15 @@ export async function findAdminAccount(id: string): Promise<AdminAccount | null>
 export async function findAdminAccountByEmail(email: string): Promise<AdminAccount | null> {
   const result = await getDb().execute({ sql: `${select} WHERE lower(a.email)=lower(?) LIMIT 1`, args: [email] });
   return result.rows[0] ? mapAccount(result.rows[0]) : null;
+}
+
+function removedEmailHash(email: string) {
+  return createHash('sha256').update(email.trim().toLowerCase()).digest('hex');
+}
+
+export async function isRemovedAdminEmail(email: string): Promise<boolean> {
+  const result = await getDb().execute({ sql: 'SELECT 1 FROM admin_account_removals WHERE email_hash=? LIMIT 1', args: [removedEmailHash(email)] });
+  return result.rows.length === 1;
 }
 
 export async function listAdminAccounts() {
@@ -112,15 +122,46 @@ export async function updateOwnAdminName(adminId: string, name: string): Promise
 }
 
 export async function createAdminAccount(input: { name: string; email: string; roleId: string; hash: string }, actorId: string) {
+  if (input.roleId === 'owner') throw new Error('Owner role cannot be assigned through Admin Users.');
   const id = createId();
   await getDb().batch([
+    { sql: 'DELETE FROM admin_account_removals WHERE email_hash=?', args: [removedEmailHash(input.email)] },
     { sql: 'INSERT INTO admins (id,email,name,created_at,password_hash,role_id,is_active,session_version,must_change_password,temporary_password_expires_at) VALUES (?,?,?,?,?,?,1,0,1,?)', args: [id, input.email.toLowerCase(), input.name, nowIso(), input.hash, input.roleId, new Date(Date.now() + 86400000).toISOString()] },
     auditStatement(actorId, 'admin.created', id, input.roleId),
   ], 'write');
   return id;
 }
 
+export async function removeAdminAccount(id: string, actorId: string): Promise<'removed' | 'active' | 'not-found'> {
+  if (id === actorId) throw new Error('You cannot remove your own account.');
+  const tx = await getDb().transaction('write');
+  try {
+    const result = await tx.execute({ sql: 'SELECT email,role_id,is_active FROM admins WHERE id=? LIMIT 1', args: [id] });
+    const current = result.rows[0];
+    if (!current) { await tx.rollback(); return 'not-found'; }
+    if (Number(current.is_active) === 1) { await tx.rollback(); return 'active'; }
+
+    await tx.execute({
+      sql: `INSERT INTO admin_account_removals(email_hash,removed_at,removed_by) VALUES(?,?,?)
+        ON CONFLICT(email_hash) DO UPDATE SET removed_at=excluded.removed_at,removed_by=excluded.removed_by`,
+      args: [removedEmailHash(String(current.email)), nowIso(), actorId],
+    });
+    await tx.execute({ sql: 'DELETE FROM site_settings WHERE key=?', args: [`admin_avatar_${id}`] });
+    await tx.execute({ sql: 'UPDATE analytics_visibility SET updated_by=NULL WHERE updated_by=?', args: [id] });
+    await tx.execute({ sql: 'UPDATE site_settings SET updated_by=NULL WHERE updated_by=?', args: [id] });
+    await tx.execute({ sql: 'UPDATE navigation_items SET created_by=NULL WHERE created_by=?', args: [id] });
+    await tx.execute({ sql: 'UPDATE navigation_items SET updated_by=NULL WHERE updated_by=?', args: [id] });
+    await tx.execute({ sql: 'UPDATE issue_hero_presentations SET updated_by=NULL WHERE updated_by=?', args: [id] });
+    await tx.execute({ sql: 'UPDATE hero_prompt_templates SET updated_by=NULL WHERE updated_by=?', args: [id] });
+    await tx.execute({ sql: 'DELETE FROM admins WHERE id=?', args: [id] });
+    await tx.execute(auditStatement(actorId, 'admin.removed', id, String(current.role_id)));
+    await tx.commit();
+    return 'removed';
+  } catch (error) { await tx.rollback(); throw error; }
+}
+
 export async function updateAdminAccount(id: string, input: { name?: string; roleId?: string; isActive?: boolean }, actorId: string) {
+  if (input.roleId === 'owner') throw new Error('Owner role cannot be assigned through Admin Users.');
   const tx = await getDb().transaction('write');
   try {
     const rows = await tx.execute({ sql: 'SELECT name,role_id,is_active FROM admins WHERE id=?', args: [id] });

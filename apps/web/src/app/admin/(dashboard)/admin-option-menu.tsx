@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 
 export type AdminOption = { value: string; label: string; helper?: string; disabled?: boolean };
 
-export function AdminOptionMenu({ icon: Icon, label, title, description, value, options, onChange, disabled = false, align = 'start', compact = false }: {
+export function AdminOptionMenu({ icon: Icon, label, title, description, value, options, onChange, disabled = false, align = 'start', compact = false, simple = false }: {
   icon: LucideIcon;
   label: string;
   title: string;
@@ -18,6 +18,7 @@ export function AdminOptionMenu({ icon: Icon, label, title, description, value, 
   disabled?: boolean;
   align?: 'start' | 'end';
   compact?: boolean;
+  simple?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -43,14 +44,14 @@ export function AdminOptionMenu({ icon: Icon, label, title, description, value, 
   }, [open]);
 
   return <div ref={menuRef} className={cn('relative min-w-0', open && 'z-30')}>
-    <button type="button" disabled={disabled} aria-haspopup="menu" aria-expanded={open} aria-label={`${label}: ${activeOption?.label ?? 'Choose an issue'}`} onClick={() => setOpen((current) => !current)} className={cn('flex w-full items-center justify-between gap-3 rounded-xl border px-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame-600 disabled:cursor-not-allowed disabled:opacity-50', compact ? 'min-h-9' : 'min-h-12', open ? 'border-flame-300 bg-white ring-2 ring-flame-100' : 'border-gray-200 bg-gray-50/60 hover:border-flame-200 hover:bg-flame-50/30')}>
-      <span className="flex min-w-0 items-center gap-2.5">
+    <button type="button" disabled={disabled} aria-haspopup="menu" aria-expanded={open} aria-label={`${label}: ${activeOption?.label ?? 'Choose an option'}`} onClick={() => setOpen((current) => !current)} className={cn('flex w-full items-center justify-between gap-3 border px-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame-600 disabled:cursor-not-allowed disabled:opacity-50', simple ? cn('rounded-lg bg-white font-medium text-gray-900', compact ? 'h-10' : 'h-11') : cn('rounded-xl', compact ? 'min-h-9' : 'min-h-12'), open ? 'border-flame-300 bg-white ring-2 ring-flame-100' : simple ? 'border-gray-300 hover:border-flame-300' : 'border-gray-200 bg-gray-50/60 hover:border-flame-200 hover:bg-flame-50/30')}>
+      {simple ? <span className="truncate">{activeOption?.label ?? label}</span> : <span className="flex min-w-0 items-center gap-2.5">
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-flame-600 ring-1 ring-flame-100"><Icon className="h-3.5 w-3.5" aria-hidden="true" /></span>
         <span className="min-w-0"><span className="block text-[10px] font-semibold tracking-wide text-gray-400 uppercase">{label}</span><span className="block truncate text-sm font-semibold text-gray-900">{activeOption?.label ?? label}</span></span>
-      </span>
+      </span>}
       <ChevronDown className={cn('h-4 w-4 shrink-0 text-gray-400 transition-transform', open && 'rotate-180 text-flame-600')} aria-hidden="true" />
     </button>
-    {open && <div role="menu" aria-label={title} className={cn('absolute z-40 mt-2 w-full min-w-[min(300px,calc(100vw-48px))] overflow-hidden rounded-2xl border border-flame-100 bg-white shadow-[0_20px_60px_rgba(120,84,28,0.16)] ring-1 ring-white', align === 'end' ? 'right-0' : 'left-0')}>
+    {open && <div role="menu" aria-label={title} className={cn('absolute z-40 mt-2 w-full overflow-hidden rounded-2xl border border-flame-100 bg-white shadow-[0_20px_60px_rgba(120,84,28,0.16)] ring-1 ring-white', simple ? 'min-w-[min(240px,calc(100vw-48px))]' : 'min-w-[min(300px,calc(100vw-48px))]', align === 'end' ? 'left-0 sm:right-0 sm:left-auto' : 'left-0')}>
       <div className="border-b border-gray-100 bg-gradient-to-r from-gold-50/80 to-flame-50/70 px-4 py-3"><div className="flex items-center gap-2 text-sm font-semibold text-gray-900"><Icon className="h-4 w-4 text-flame-600" aria-hidden="true" />{title}</div><p className="mt-0.5 text-xs text-gray-500">{description}</p></div>
       <div className="max-h-[min(360px,calc(100vh-220px))] overflow-y-auto p-1.5">{options.map((option) => {
         const active = option.value === value;
