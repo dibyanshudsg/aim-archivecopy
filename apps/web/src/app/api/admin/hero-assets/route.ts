@@ -10,6 +10,7 @@ import { adminMutationRateLimit } from '@/lib/rate-limit';
 import { boundedJson } from '@/lib/request-body';
 import { z } from 'zod';
 import { deleteFromR2, uploadToR2 } from '@/lib/r2-client';
+import { HERO_ARTWORK_TARGET_BYTES, optimizeHeroArtwork } from '@/lib/hero-artwork-compression';
 
 export const runtime = 'nodejs';
 const MAX = 8 * 1024 * 1024;
@@ -74,12 +75,13 @@ export async function POST(request: NextRequest) {
     const image = decoded ? await loadImage(decoded).catch(() => null) : null; const [width,height] = dimensions[slot];
     if (!image || image.width !== width || image.height !== height) return NextResponse.json({ error: `${slot === 'desktop' ? 'Desktop' : 'Phone'} artwork must be exactly ${width} × ${height}` }, { status: 400 });
     const canvas = createCanvas(width,height); canvas.getContext('2d').drawImage(image,0,0,width,height); const normalized = canvas.toBuffer('image/png');
-    const hash = createHash('sha256').update(normalized).digest('hex'); uploaded = `hero/${issueId}/${slot}/${hash}.png`;
-    await uploadToR2(uploaded,normalized,'image/png');
+    const optimized = await optimizeHeroArtwork(normalized);
+    const hash = createHash('sha256').update(optimized.bytes).digest('hex'); uploaded = `hero/${issueId}/${slot}/${hash}.${optimized.extension}`;
+    await uploadToR2(uploaded,optimized.bytes,optimized.contentType);
     const old = await saveHeroArtwork(issueId,slot,{ key: uploaded,width,height,hash,theme:themeFor(canvas) },admin.id);
     if (old && old !== uploaded) await deleteFromR2(old).catch(() => undefined);
     await auditAdmin(admin.id,'hero.artwork.updated',issueId,`${slot}:${hash}`);
-    return NextResponse.json({ ok: true, hash, width, height }, { status: 201 });
+    return NextResponse.json({ ok: true, hash, width, height, originalBytes: file.size, storedBytes: optimized.bytes.length, targetBytes: HERO_ARTWORK_TARGET_BYTES, quality: optimized.quality, targetMet: optimized.targetMet }, { status: 201 });
   } catch (error) { if (uploaded) await deleteFromR2(uploaded).catch(() => undefined); return adminApiFailure(error,'Could not upload hero artwork'); }
 }
 
