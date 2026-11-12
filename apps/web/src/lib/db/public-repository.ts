@@ -283,39 +283,44 @@ export async function listRelatedReadableIssues(issue: ApiIssue, limit = 3): Pro
 
 export async function getPublicIssueMetadataById(id: string): Promise<{
   title: string;
+  theme: string | null;
   description: string | null;
   magazineName: string;
+  language: string;
+  year: number;
+  month: number;
+  hasCover: boolean;
+  isEmbargoed: boolean;
+  updatedAt: string;
 } | null> {
-  const result = await getDb().execute({
-    sql: `
-      SELECT i.title, i.description, m.name AS magazine_name
-      FROM issues i
-      JOIN magazines m ON m.id = i.magazine_id
-      WHERE i.id = ?
-        AND ${releasedIssueSql('i')}
-        AND ${supportedAssetSql('i.pdf_url')}
-      LIMIT 1
-    `,
-    args: [id],
-  });
-  const row = result.rows[0];
-  return row
+  const issue = await getPublicIssueById(id);
+  return issue
     ? {
-        title: String(row.title),
-        description: row.description == null ? null : String(row.description),
-        magazineName: String(row.magazine_name),
+        title: issue.title,
+        theme: issue.theme,
+        description: issue.description,
+        magazineName: issue.magazines.name,
+        language: issue.magazines.language,
+        year: issue.year,
+        month: issue.month,
+        hasCover: Boolean(issue.cover_image_url),
+        isEmbargoed: issue.is_embargoed,
+        updatedAt: issue.updated_at,
       }
     : null;
 }
 
 export async function listSitemapIssues(): Promise<Array<{ id: string; updated_at: string }>> {
-  const result = await getDb().execute(`
-    SELECT id, updated_at
-    FROM issues
-    WHERE ${releasedIssueSql('issues')}
-      AND ${supportedAssetSql('pdf_url')}
-    ORDER BY year DESC, month DESC
-  `);
+  const cutoff = readableCutoffIssueMonth();
+  const featuredIds = [...await getLiveHeroIssueIds()];
+  const featuredSql = featuredIds.length ? ` OR id IN (${placeholders(featuredIds.length)})` : '';
+  const result = await getDb().execute({
+    sql: `SELECT id, updated_at FROM issues
+      WHERE ${releasedIssueSql('issues')} AND ${supportedAssetSql('pdf_url')}
+        AND (year < ? OR (year = ? AND month <= ?)${featuredSql})
+      ORDER BY year DESC, month DESC`,
+    args: [cutoff.year, cutoff.year, cutoff.month, ...featuredIds],
+  });
   return result.rows.map((row) => ({
     id: String(row.id),
     updated_at: String(row.updated_at),

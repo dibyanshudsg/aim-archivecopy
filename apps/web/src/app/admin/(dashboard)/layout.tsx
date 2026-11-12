@@ -2,6 +2,12 @@ import { redirect } from 'next/navigation';
 import { getAdminForPage } from './admin-page-auth';
 import { AdminDashboardShell } from './admin-shell';
 import { publicAdmin } from '@/lib/db/admin-accounts';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Admin',
+  robots: { index: false, follow: false },
+};
 
 export default async function AdminDashboardLayout({
   children,

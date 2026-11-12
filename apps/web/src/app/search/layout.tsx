@@ -1,15 +1,13 @@
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
-  title: 'Search',
-  description:
-    'Search AIM Archive titles, themes, topics, and indexed page text. Find readable editions and explore the wider catalogue.',
-  openGraph: {
-    title: 'Search the Archive | AIM Archive',
-    description: 'Full-text search across decades of spiritual literature.',
-  },
-  alternates: { canonical: '/search' },
-};
+export const metadata: Metadata = pageMetadata({
+  title: 'Search Magazine Archive | Sri Aurobindo Society',
+  description: 'Search All India Magazine and Agnishikha for magazine issues and writings related to Sri Aurobindo, the Mother, Integral Yoga, consciousness and spiritual life.',
+  path: '/search',
+  index: false,
+  follow: true,
+});
 
 export default function SearchLayout({ children }: { children: React.ReactNode }) {
   return children;

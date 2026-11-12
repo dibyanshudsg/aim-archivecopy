@@ -1,15 +1,11 @@
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
-  title: 'Browse Archive',
-  description:
-    'Browse Sri Aurobindo Society editions by magazine, year, language, or topic. Featured issues are readable now; other editions open after five years.',
-  openGraph: {
-    title: 'Browse Archive | AIM Archive',
-    description: 'Browse the online collection of Sri Aurobindo Society magazines.',
-  },
-  alternates: { canonical: '/browse' },
-};
+export const metadata: Metadata = pageMetadata({
+  title: 'All India Magazine Archive – Past Editions | Sri Aurobindo Society',
+  description: 'Browse past editions of All India Magazine and Agnishikha from Sri Aurobindo Society. Discover issues exploring Integral Yoga, spirituality, consciousness and the teachings of Sri Aurobindo and the Mother.',
+  path: '/browse',
+});
 
 export default function BrowseLayout({ children }: { children: React.ReactNode }) {
   return children;

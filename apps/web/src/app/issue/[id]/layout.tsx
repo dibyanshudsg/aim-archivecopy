@@ -1,5 +1,8 @@
 import type { Metadata } from 'next';
 import { getPublicIssueMetadataById } from '@/lib/db';
+import { MONTH_NAMES, type MonthIndex } from '@aim-archive/shared';
+import { pageMetadata } from '@/lib/seo';
+import { notFound } from 'next/navigation';
 
 export async function generateMetadata({
   params,
@@ -8,22 +11,14 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const issue = await getPublicIssueMetadataById(id);
-  if (!issue) return { title: 'Issue Not Found' };
+  if (!issue) notFound();
 
-  return {
-    title: issue.title,
-    description:
-      issue.description ||
-      `Read ${issue.title} from ${issue.magazineName}. Part of the AIM Archive - Sri Aurobindo Society's digital magazine collection.`,
-    openGraph: {
-      title: `${issue.title} | AIM Archive`,
-      description:
-        issue.description ||
-        `${issue.magazineName} - ${issue.title}. Free to read online.`,
-      type: 'article',
-    },
-    alternates: { canonical: `/issue/${id}` },
-  };
+  const monthYear = `${MONTH_NAMES[issue.month as MonthIndex]} ${issue.year}`;
+  const subject = issue.theme?.trim() || issue.title;
+  const title = `${subject} – ${issue.magazineName}, ${monthYear}`;
+  const description = issue.description?.trim() || `Explore ${subject}, the ${monthYear} edition of ${issue.magazineName} from Sri Aurobindo Society.`;
+  const images = issue.hasCover ? [{ url: `/api/issues/${id}/cover`, alt: `${issue.magazineName} — ${monthYear} cover` }] : undefined;
+  return pageMetadata({ title, description, path: `/issue/${id}`, index: !issue.isEmbargoed, follow: true, images, openGraphType: 'article' });
 }
 
 export default function IssueLayout({ children }: { children: React.ReactNode }) {

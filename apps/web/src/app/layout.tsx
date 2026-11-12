@@ -4,6 +4,7 @@ import { WebVitals } from '@/components/web-vitals';
 import '@/styles/globals.css';
 import { ContinueReadingFab } from '@/components/layout/continue-reading-fab';
 import { PageTransition } from '@/components/layout/page-transition';
+import { PRODUCTION_ORIGIN, PUBLISHER_NAME, SITE_ALTERNATE_NAME, SITE_NAME, pageMetadata, siteOrigin, siteUrl } from '@/lib/seo';
 
 // Each next/font is given a UNIQUE CSS variable name. The composed
 // `--font-heading` / `--font-sans` / etc. tokens in `globals.css` then
@@ -43,79 +44,59 @@ const tangerine = localFont({
   display: 'swap',
 });
 
+const homeTitle = 'All India Magazine – Sri Aurobindo Society';
+const homeDescription = 'Explore All India Magazine and Agnishikha, publications of Sri Aurobindo Society, featuring the writings of Sri Aurobindo and the Mother on Integral Yoga, spirituality and the evolution of consciousness.';
+
 export const metadata: Metadata = {
+  ...pageMetadata({ title: homeTitle, description: homeDescription, path: '/' }),
   title: {
-    default: 'AIM Archive — Sri Aurobindo Society Magazine Archive',
+    default: homeTitle,
     template: '%s | AIM Archive',
   },
-  description:
-    'Explore Sri Aurobindo Society magazine editions and writings by Sri Aurobindo and The Mother. Featured issues are readable now; other editions enter the free public archive after five years.',
   keywords: [
+    'All India Magazine',
+    'All India Magazine archive',
+    'Agnishikha',
     'Sri Aurobindo',
     'The Mother',
-    'All India Magazine',
-    'Agnishikha',
     'Sri Aurobindo Society',
-    'spiritual magazine',
-    'magazine archive',
-    'Auroville',
-    'yoga',
-    'philosophy',
+    'Sri Aurobindo writings',
+    'The Mother writings',
+    'Integral Yoga',
     'spirituality',
-    'integral yoga',
+    'evolution of consciousness',
+    'spiritual transformation',
+    'magazine archive',
   ],
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://aimarchive.aurosociety.org'),
-  openGraph: {
-    title: 'AIM Archive — Sri Aurobindo Society Magazine Archive',
-    description:
-      'Explore featured Sri Aurobindo Society issues and a growing public archive.',
-    type: 'website',
-    locale: 'en_IN',
-    siteName: 'AIM Archive',
-    images: [{ url: '/api/brand/social', width: 1200, height: 1200, alt: 'AIM Archive Logo' }],
-  },
-  twitter: {
-    card: 'summary',
-    title: 'AIM Archive — Sri Aurobindo Society Magazine Archive',
-    description:
-      'Explore featured Sri Aurobindo Society issues and a growing public archive.',
-    images: ['/api/brand/social'],
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: { index: true, follow: true },
-  },
-  alternates: {
-    canonical: '/',
-  },
+  metadataBase: new URL(siteOrigin()),
   icons: { icon: '/api/brand/favicon', apple: '/api/brand/favicon' },
 };
 
 const jsonLd = {
   '@context': 'https://schema.org',
-  '@type': 'WebSite',
-  name: 'AIM Archive',
-  description:
-    'Digital archive of All India Magazine, Agnishikha, and other Sri Aurobindo Society publications.',
-  url: process.env.NEXT_PUBLIC_APP_URL || 'https://aimarchive.aurosociety.org',
-  publisher: {
-    '@type': 'Organization',
-    name: 'Sri Aurobindo Society',
-    url: 'https://aurosociety.org',
-    logo: {
-      '@type': 'ImageObject',
-      url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://aimarchive.aurosociety.org'}/api/brand/logo`,
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${PRODUCTION_ORIGIN}/#organization`,
+      name: PUBLISHER_NAME,
+      url: 'https://aurosociety.org/',
+      logo: { '@type': 'ImageObject', url: siteUrl('/api/brand/logo') },
     },
-  },
-  potentialAction: {
-    '@type': 'SearchAction',
-    target: {
-      '@type': 'EntryPoint',
-      urlTemplate: `${process.env.NEXT_PUBLIC_APP_URL || 'https://aimarchive.aurosociety.org'}/search?q={search_term_string}`,
+    {
+      '@type': 'WebSite',
+      '@id': `${PRODUCTION_ORIGIN}/#website`,
+      name: SITE_NAME,
+      alternateName: SITE_ALTERNATE_NAME,
+      description: homeDescription,
+      url: siteUrl('/'),
+      publisher: { '@id': `${PRODUCTION_ORIGIN}/#organization` },
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: { '@type': 'EntryPoint', urlTemplate: siteUrl('/search?q={search_term_string}') },
+        'query-input': 'required name=search_term_string',
+      },
     },
-    'query-input': 'required name=search_term_string',
-  },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

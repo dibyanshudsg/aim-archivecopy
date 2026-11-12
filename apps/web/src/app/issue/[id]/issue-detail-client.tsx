@@ -174,7 +174,7 @@ export function IssueDetailClient({ initialIssue, navigation, relatedIssues }: I
               Browse
             </Link>
             <span>/</span>
-            <span className="text-gray-900">{issue.title}</span>
+            <span lang={issue.magazine.language === 'hindi' ? 'hi' : undefined} className="text-gray-900">{issue.title}</span>
           </div>
         </div>
 
@@ -223,14 +223,14 @@ export function IssueDetailClient({ initialIssue, navigation, relatedIssues }: I
               transition={{ delay: 0.1, duration: 0.4 }}
               className="lg:col-span-2"
             >
-              <h1 className="font-heading text-3xl font-bold text-gray-900 sm:text-4xl">
+              <h1 lang={issue.magazine.language === 'hindi' ? 'hi' : undefined} className="font-heading text-3xl font-bold text-gray-900 sm:text-4xl">
                 {issue.title}
               </h1>
 
               {issue.theme && (
                 <div className="mt-3 flex items-start gap-2.5">
                   <span aria-hidden className="mt-1.5 h-7 w-1 shrink-0 rounded-full bg-gradient-to-b from-gold-500 to-flame-500" />
-                  <p className="font-heading bg-gradient-to-r from-gold-600 to-flame-600 bg-clip-text pr-1 text-xl font-semibold leading-tight text-transparent sm:text-2xl">
+                  <p lang={issue.magazine.language === 'hindi' ? 'hi' : undefined} className="font-heading bg-gradient-to-r from-gold-600 to-flame-600 bg-clip-text pr-1 text-xl font-semibold leading-tight text-transparent sm:text-2xl">
                     {issue.theme}
                   </p>
                 </div>
