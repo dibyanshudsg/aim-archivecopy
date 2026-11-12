@@ -21,15 +21,13 @@ import type { MonthIndex, Language } from '@aim-archive/shared';
 import { formatFileSize } from '@/lib/utils';
 import { useBookmarks } from '@/lib/bookmarks-store';
 import { AccessNotice } from '@/components/magazine/access-notice';
-import { ReportProblem } from '@/components/magazine/report-problem';
-import { IssueCard } from '@/components/magazine/issue-card';
 import type { PublicNavigation } from '@/lib/navigation';
 import { configurePdfWorker } from '@/lib/pdf-worker-client';
 
 interface IssueDetailClientProps {
   initialIssue: ApiIssue;
   navigation: PublicNavigation;
-  relatedIssues: ApiIssue[];
+  relatedSection: React.ReactNode;
 }
 
 const MAX_UNLOCK_TIMER_DELAY_MS = 2_147_000_000;
@@ -43,7 +41,7 @@ function scheduleIdleWork(callback: () => void, timeout = 1_500): () => void {
   return () => clearTimeout(id);
 }
 
-export function IssueDetailClient({ initialIssue, navigation, relatedIssues }: IssueDetailClientProps) {
+export function IssueDetailClient({ initialIssue, navigation, relatedSection }: IssueDetailClientProps) {
   const { toggle, isBookmarked } = useBookmarks();
   const [apiIssue, setApiIssue] = useState(initialIssue);
   const [unlockRefreshing, setUnlockRefreshing] = useState(false);
@@ -168,7 +166,7 @@ export function IssueDetailClient({ initialIssue, navigation, relatedIssues }: I
       <Header navigation={navigation} />
       <main className="flex-1">
         <div className="border-b border-gray-100 px-6 py-3 lg:px-8">
-          <div className="mx-auto flex max-w-5xl items-center gap-2 text-sm text-gray-500">
+          <div className="mx-auto flex w-full max-w-[1440px] items-center gap-2 text-sm text-gray-500">
             <Link href="/browse" className="flex items-center gap-1 hover:text-flame-600">
               <ArrowLeft className="h-3.5 w-3.5" />
               Browse
@@ -178,13 +176,12 @@ export function IssueDetailClient({ initialIssue, navigation, relatedIssues }: I
           </div>
         </div>
 
-        <div className="mx-auto max-w-5xl px-6 py-10 lg:px-8">
-          <div className="grid gap-10 lg:grid-cols-3">
+        <div className="mx-auto w-full max-w-[1440px] px-6 py-10 lg:px-8">
+          <div className="grid gap-10 lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)] xl:gap-14">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4 }}
-              className="lg:col-span-1"
             >
               <div className="sticky top-24 overflow-hidden rounded-2xl border border-flame-100 bg-gradient-to-br from-gold-50 to-flame-50 shadow-sm">
                 {issue.coverImageUrl ? (
@@ -221,7 +218,6 @@ export function IssueDetailClient({ initialIssue, navigation, relatedIssues }: I
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1, duration: 0.4 }}
-              className="lg:col-span-2"
             >
               <h1 lang={issue.magazine.language === 'hindi' ? 'hi' : undefined} className="font-heading text-3xl font-bold text-gray-900 sm:text-4xl">
                 {issue.title}
@@ -325,13 +321,9 @@ export function IssueDetailClient({ initialIssue, navigation, relatedIssues }: I
                   ))}
                 </div>
               )}
-              <ReportProblem issueId={issue.id} title={issue.title} />
             </motion.div>
           </div>
-          {relatedIssues.length > 0 && <section className="mt-12" aria-labelledby="related-heading">
-            <h2 id="related-heading" className="font-heading mb-5 text-2xl font-semibold text-gray-900">Readable editions to explore</h2>
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">{relatedIssues.map((related, index) => <IssueCard key={related.id} issue={normalizeIssue(related)} index={index} />)}</div>
-          </section>}
+          {relatedSection}
         </div>
       </main>
       <Footer navigation={navigation} />

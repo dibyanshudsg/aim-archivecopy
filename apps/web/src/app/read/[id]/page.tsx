@@ -52,6 +52,8 @@ import type { IssueWithMagazine } from '@aim-archive/shared';
 import { useInitialReaderIssue } from './reader-issue-context';
 import { AccessNotice } from '@/components/magazine/access-notice';
 import { ReportProblem } from '@/components/magazine/report-problem';
+import { Flame } from '@/components/home/flame';
+import { ReaderOpeningState } from '@/components/reader/reader-opening-state';
 
 configurePdfWorker(pdfjs);
 
@@ -62,7 +64,7 @@ const MAX_RENDER_DPR = 2;
 const RENDER_SETTLE_MS = 180;
 
 export default function ReaderPage({ params }: { params: Promise<{ id: string }> }) {
-  return <Suspense fallback={<main className="p-8 text-center text-gray-600">Loading reader…</main>}><ReaderContent params={params} /></Suspense>;
+  return <Suspense fallback={<ReaderOpeningState />}><ReaderContent params={params} /></Suspense>;
 }
 
 function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
@@ -178,6 +180,12 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
     if (typeof window === 'undefined') return;
     setRenderDpr(Math.min(window.devicePixelRatio || 1, MAX_RENDER_DPR));
   }, []);
+
+  useEffect(() => {
+    setNumPages(0);
+    setFirstPageRendered(false);
+    setError(false);
+  }, [issue?.id, pdfRetry.revision]);
 
   // Continuous-mode virtualization: only mount <Page> for pages near the
   // viewport. Off-screen slots are placeholder divs sized to the same
@@ -1078,8 +1086,8 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
 
   if (pageLoading) {
     return (
-      <main aria-label="Loading reader" className="flex h-screen items-center justify-center bg-gray-100">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-flame-100 border-t-flame-500" />
+      <main aria-label="Loading reader" className="flex h-screen items-center justify-center bg-gradient-to-b from-[#fffaf1] to-gray-100">
+        <ReaderLoadingState label="Preparing issue" />
       </main>
     );
   }
@@ -1158,15 +1166,28 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
           <div className="relative flex items-center justify-between gap-2 px-3 py-2 sm:px-4 sm:py-2.5">
             {/* Left: back + cover + title */}
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-              <Link
-                href={backTarget.href}
-                className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 text-gray-500 transition-colors hover:bg-flame-50 hover:text-flame-700"
-                aria-label={backTarget.aria}
-                title={backTarget.aria}
-              >
-                <ArrowLeft className="h-5 w-5" />
-                <span className="hidden text-xs font-semibold lg:inline">{backTarget.label}</span>
-              </Link>
+              {readerSource === 'shelf' ? (
+                <button
+                  type="button"
+                  onClick={() => router.back()}
+                  className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 text-gray-500 transition-colors hover:bg-flame-50 hover:text-flame-700"
+                  aria-label={backTarget.aria}
+                  title={backTarget.aria}
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                  <span className="hidden text-xs font-semibold lg:inline">{backTarget.label}</span>
+                </button>
+              ) : (
+                <Link
+                  href={backTarget.href}
+                  className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 text-gray-500 transition-colors hover:bg-flame-50 hover:text-flame-700"
+                  aria-label={backTarget.aria}
+                  title={backTarget.aria}
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                  <span className="hidden text-xs font-semibold lg:inline">{backTarget.label}</span>
+                </Link>
+              )}
               <button
                 type="button"
                 onClick={() => setInfoDrawerOpen(true)}
@@ -1428,12 +1449,13 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
         className="relative flex-1 overflow-auto"
         style={{ touchAction: 'pan-x pan-y' }}
       >
-        {/* Cover-JPEG LCP placeholder. Sits over the PDF area on first paint
-            so Lighthouse can pin LCP to a fast-loading raster image instead
-            of waiting for the PDF canvas. Fades out once the first Page has
-            rendered. priority + fetchPriority="high" so the browser preloads
-            it ahead of the PDF bytes. */}
-        {issue.coverImageUrl && !firstPageRendered && (
+        {/* Keep the opening state calm while PDF.js acquires the document.
+            Once ready, retain the fast cover JPEG until page 1 is rasterized. */}
+        {numPages === 0 && !error ? (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-gradient-to-b from-[#fffaf1] to-gray-100 p-6">
+            <ReaderLoadingState label="Opening magazine" />
+          </div>
+        ) : issue.coverImageUrl && !firstPageRendered ? (
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center p-4 transition-opacity duration-300 sm:p-8"
@@ -1446,7 +1468,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
               className="h-full max-h-full w-auto rounded-md object-contain shadow-xl"
             />
           </div>
-        )}
+        ) : null}
         <div
           className={`flex min-h-full p-4 sm:p-8 ${
             viewMode === 'single'
@@ -1476,12 +1498,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
               onLoadSuccess={onDocumentLoadSuccess}
               onLoadError={(error) => { if (!pdfRetry.retry(error)) setError(true); }}
               onSourceError={(error) => { if (!pdfRetry.retry(error)) setError(true); }}
-              loading={
-                <div className="mt-20 flex flex-col items-center gap-3">
-                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-flame-100 border-t-flame-500" />
-                  <p className="text-sm text-gray-500">Loading document...</p>
-                </div>
-              }
+              loading={null}
               className={viewMode === 'continuous' ? 'flex flex-col gap-4 [align-items:safe_center]' : undefined}
             >
               {viewMode === 'single' ? (
@@ -1658,6 +1675,15 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
 
       <CopyDisclaimerToast />
     </main>
+  );
+}
+
+function ReaderLoadingState({ label }: { label: string }) {
+  return (
+    <div className="flex min-w-[260px] flex-col items-center text-center" role="status" aria-live="polite">
+      <Flame className="origin-bottom scale-75 sm:scale-[0.82]" />
+      <p className="mt-3 font-heading text-base font-semibold text-gray-700">{label}</p>
+    </div>
   );
 }
 

@@ -9,13 +9,13 @@ export default function IssueDetailLoading() {
     >
       <div className="h-[65px] border-b border-flame-100 bg-white sm:h-[73px]" />
       <div className="border-b border-gray-100 px-6 py-3 lg:px-8">
-        <div className="mx-auto h-4 max-w-5xl animate-pulse rounded bg-gray-100 motion-reduce:animate-none" />
+        <div className="mx-auto h-4 w-full max-w-[1440px] animate-pulse rounded bg-gray-100 motion-reduce:animate-none" />
       </div>
 
-      <main className="mx-auto max-w-5xl px-6 py-10 lg:px-8">
-        <div className="grid gap-10 lg:grid-cols-3">
-          <div className="aspect-[3/4] animate-pulse rounded-2xl bg-flame-50 motion-reduce:animate-none lg:col-span-1" />
-          <div className="lg:col-span-2">
+      <main className="mx-auto w-full max-w-[1440px] px-6 py-10 lg:px-8">
+        <div className="grid gap-10 lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)] xl:gap-14">
+          <div className="aspect-[3/4] animate-pulse rounded-2xl bg-flame-50 motion-reduce:animate-none" />
+          <div>
             <div className="h-10 w-4/5 animate-pulse rounded-lg bg-gray-100 motion-reduce:animate-none" />
             <div className="mt-4 h-7 w-3/5 animate-pulse rounded bg-flame-50 motion-reduce:animate-none" />
             <div className="mt-8 space-y-3">
