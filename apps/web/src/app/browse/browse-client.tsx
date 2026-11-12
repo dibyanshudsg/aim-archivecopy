@@ -88,7 +88,7 @@ const availabilityOptions = [
 const availabilityCopy: Record<AvailabilityFilter, { heading: string; subtitle: string; countLabel: string }> = {
   read: {
     heading: 'Browse Archive',
-    subtitle: 'Explore public archive editions available to read online.',
+    subtitle: 'Explore readable All India Magazine and Agnishikha editions from the public archive.',
     countLabel: 'readable',
   },
   subscriber: {
@@ -98,7 +98,7 @@ const availabilityCopy: Record<AvailabilityFilter, { heading: string; subtitle: 
   },
   all: {
     heading: 'Browse Archive',
-    subtitle: 'Browse readable editions and editions awaiting public release together.',
+    subtitle: 'Browse All India Magazine and Agnishikha editions, including those awaiting public release.',
     countLabel: 'archive',
   },
 };
@@ -110,6 +110,7 @@ interface BrowseClientProps {
   initialTotalPages: number;
   initialFacets: BrowseFacets;
   navigation: PublicNavigation;
+  archiveGrowthNote: string;
 }
 
 export function BrowseClient(props: BrowseClientProps) {
@@ -123,6 +124,7 @@ function BrowseContent({
   initialTotalPages,
   initialFacets,
   navigation,
+  archiveGrowthNote,
 }: BrowseClientProps) {
   const {
     filters,
@@ -417,6 +419,13 @@ function BrowseContent({
     () => buildYearSeparatedGridItems(normalized, showYearSeparators),
     [normalized, showYearSeparators],
   );
+  const hasNarrowingFilters = Boolean(
+    filters.query || filters.years.length || filters.months.length || filters.magazines.length ||
+    filters.languages.length || filters.subjects.length,
+  );
+  const atEarliestArchiveBoundary = !hasNarrowingFilters && filters.availability !== 'subscriber' &&
+    ((filters.sort === null && filters.dir === 'desc' && currentPage === totalPages) ||
+      (filters.sort === 'date' && filters.dir === 'asc' && currentPage === 1));
   const browseReturnTargetRef = useRef<BrowseReturnTarget | null>(null);
   const browseReturnReadRef = useRef(false);
 
@@ -781,6 +790,13 @@ function BrowseContent({
                   <IssueCard key={item.issue.id} issue={item.issue} index={item.index} />
                 )
               ))}
+            </div>
+          )}
+
+          {!loading && total > 0 && atEarliestArchiveBoundary && (
+            <div className="mx-auto mt-6 flex max-w-2xl items-start gap-3 rounded-2xl border border-gold-200/80 bg-gradient-to-br from-gold-50/70 to-flame-50/50 px-4 py-3.5 shadow-[0_10px_30px_rgba(120,84,28,0.07)]">
+              <BookOpen className="mt-0.5 h-5 w-5 shrink-0 text-flame-600" aria-hidden="true" />
+              <p className="text-sm leading-relaxed text-gray-600">{archiveGrowthNote}</p>
             </div>
           )}
 

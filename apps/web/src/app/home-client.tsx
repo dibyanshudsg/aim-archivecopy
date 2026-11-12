@@ -22,6 +22,7 @@ import {
 import { readerPath, rememberDirectResume, rememberReaderSource } from '@/lib/reader-url';
 import { formatMonthYear } from '@/lib/utils';
 import type { PublicNavigation } from '@/lib/navigation';
+import type { SiteSettings } from '@/lib/site-settings';
 
 const AnimatedBookshelf = dynamic(() =>
   import('@/components/home/animated-bookshelf').then((module) => module.AnimatedBookshelf),
@@ -59,6 +60,7 @@ interface HomeClientProps {
   pickerIssues: HeroPickerIssue[];
   navigation: PublicNavigation;
   collection: { listed: number; readable: number; languages: string[] };
+  siteSettings: SiteSettings;
 }
 
 function ContinueReadingShelf({ featuredIds }: { featuredIds: string }) {
@@ -178,6 +180,7 @@ export function HomeClient({
   pickerIssues,
   navigation,
   collection,
+  siteSettings,
 }: HomeClientProps) {
   return (
     <div className="flex min-h-screen flex-col">
@@ -192,19 +195,21 @@ export function HomeClient({
           />
 
           <section className="mx-auto mt-8 w-full max-w-[1440px] border-y border-gold-200/70 px-2 py-6 sm:mt-16 sm:px-6 sm:py-10 lg:px-10" aria-labelledby="archive-intro-title">
-            <div className="mx-auto flex w-full max-w-[1080px] flex-col items-center gap-2 sm:w-fit sm:flex-row sm:gap-7">
-              <div className="flex shrink-0 justify-center sm:-translate-x-5" aria-hidden="true">
+            <div className="relative mx-auto flex w-full max-w-5xl flex-col items-center">
+              <div className="flex justify-center sm:absolute sm:left-0 sm:top-1/2 sm:-translate-y-1/2" aria-hidden="true">
                 <Flame className="scale-[0.8] sm:scale-[0.9]" />
               </div>
-              <div className="min-w-0 text-center sm:text-left">
-                <h2 id="archive-intro-title" className="whitespace-nowrap font-cursive text-[clamp(1.6rem,8.4vw,3rem)] leading-tight text-flame-700 sm:text-[4rem] lg:text-[4.25rem]">
-                  An Archive of Eternal Flame
-                </h2>
-                <p className="mt-1 text-base leading-relaxed text-gray-700 sm:mt-2 sm:text-lg">
-                  Writings of Sri Aurobindo and The Mother, preserved for discovery and reading.
-                </p>
-                <p className="mt-1 text-base leading-relaxed text-gray-700 sm:mt-2 sm:text-lg">
-                  Featured current editions and older archive issues are available to read.
+              <div className="min-w-0 max-w-4xl text-center sm:px-20">
+                <div className="mx-auto w-fit max-w-full">
+                  <h2 id="archive-intro-title" className="font-cursive text-[clamp(2.5rem,9vw,4.25rem)] font-bold leading-[0.95] text-flame-600">
+                    “{siteSettings.archive_intro_quote}”
+                  </h2>
+                  <p className="font-heading mt-2 text-right text-sm tracking-wide text-flame-800 sm:text-base">
+                    — {siteSettings.archive_intro_attribution}
+                  </p>
+                </div>
+                <p className="mt-4 max-w-4xl text-base leading-relaxed text-gray-700 sm:text-lg">
+                  {siteSettings.archive_intro_description}
                 </p>
               </div>
             </div>
@@ -218,7 +223,7 @@ export function HomeClient({
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
           >
-            <AnimatedBookshelf issues={recentIssues} years={shelfYears} />
+            <AnimatedBookshelf issues={recentIssues} years={shelfYears} archiveGrowthNote={siteSettings.archive_growth_note} />
           </motion.div>
 
           <ContinueReadingShelf featuredIds={carouselIssues.map((issue) => issue.id).join(',')} />

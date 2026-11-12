@@ -7,6 +7,7 @@ import { getAdminSiteSettings } from '@/lib/admin-data';
 import { formatZodError, siteSettingsSchema } from '@/lib/validations';
 import { auditAdmin } from '@/lib/db/admin-accounts';
 import { adminMutationRateLimit } from '@/lib/rate-limit';
+import { refreshPublicArchiveCaches } from '@/lib/public-cache';
 
 export async function GET() {
   const admin = await verifyAdmin('settings.view');
@@ -36,6 +37,7 @@ export async function PATCH(request: NextRequest) {
   try {
     await upsertSiteSettingsInDb(parsed.data, admin.id);
     await auditAdmin(admin.id, 'settings.updated');
+    refreshPublicArchiveCaches();
     return NextResponse.json(parsed.data);
   } catch (error) {
     return adminApiFailure(error, 'Failed to save settings');

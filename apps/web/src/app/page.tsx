@@ -9,6 +9,7 @@ import {
   readHeroPresentation,
   listReleasedReadyHeroIssueIds,
   readGlobalHeroPlacements,
+  readSiteSettingsFromDb,
 } from '@/lib/db';
 import type { ApiIssue, ApiMagazine } from '@/lib/api';
 import type { ShelfIssue } from '@/lib/home-shelf';
@@ -68,12 +69,13 @@ async function fetchCarouselData(): Promise<CarouselData> {
 export default async function HomePage() {
   const cutoff = readableCutoffIssueMonth();
   const windowKey = `${cutoff.year}-${cutoff.month}`;
-  const [recentIssues, latestSubscriberEditions, carousel, navigation, collection] = await Promise.all([
+  const [recentIssues, latestSubscriberEditions, carousel, navigation, collection, siteSettings] = await Promise.all([
     fetchShelfIssues(windowKey),
     fetchLatestSubscriberEditions(),
     fetchCarouselData(),
     getPublicNavigationFromDb(),
     fetchCollectionSummary(windowKey),
+    readSiteSettingsFromDb(),
   ]);
 
   return (
@@ -86,6 +88,7 @@ export default async function HomePage() {
       pickerIssues={carousel.pickerIssues}
       navigation={navigation}
       collection={collection}
+      siteSettings={siteSettings}
     />
   );
 }

@@ -89,6 +89,10 @@ export interface AdminIssueListResult {
 export interface AdminSiteSettings {
   feedback_form_url: string;
   feedback_form_edit_url: string;
+  archive_intro_quote: string;
+  archive_intro_attribution: string;
+  archive_intro_description: string;
+  archive_growth_note: string;
 }
 
 export type LinkedField = 'pdf_url' | 'cover_image_url';

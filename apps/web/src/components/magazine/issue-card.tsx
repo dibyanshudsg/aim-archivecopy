@@ -39,10 +39,10 @@ export function IssueCard({ issue, index = 0, source = 'browse' }: IssueCardProp
   const isSelected = useBulkSelection((s) => s.selectedIds.has(issue.id));
   const toggleSelection = useBulkSelection((s) => s.toggle);
 
-  // Cards above the fold get LCP priority on their cover image. 6 covers
-  // first row across all breakpoints (2/3/3/4/4/5). Only matters on first
+  // Cards above the fold get LCP priority on their cover image. The widest
+  // first row has 5 covers; below-the-fold cards wait until they approach.
   // paint of /browse + /bookmarks; below-the-fold cards use lazy loading.
-  const isAboveFold = index < 2;
+  const isAboveFold = index < 5;
   const prepareDetails = () => {
     if (selectionEnabled) return;
     router.prefetch(detailHref);

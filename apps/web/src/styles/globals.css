@@ -356,8 +356,8 @@ html {
   z-index: 3;
   top: 0;
   bottom: 0;
-  left: -7px;
-  width: 8px;
+  left: -12px;
+  width: 13px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -366,7 +366,8 @@ html {
   writing-mode: vertical-rl;
   transform: translateZ(4px);
   transform-origin: right center;
-  border-left: 1px solid color-mix(in srgb, var(--book-spine-color, #0e3f63), white 38%);
+  border-left: 1px solid color-mix(in srgb, var(--book-spine-color, #0e3f63), white 55%);
+  border-right: 1px solid color-mix(in srgb, var(--book-spine-color, #0e3f63), black 42%);
   background: linear-gradient(90deg,
     color-mix(in srgb, var(--book-spine-color, #0e3f63), black 58%),
     color-mix(in srgb, var(--book-spine-color, #0e3f63), black 18%) 38%,
@@ -378,12 +379,27 @@ html {
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  box-shadow: inset -2px 0 3px rgb(255 255 255 / 0.13), -2px 2px 4px rgb(20 35 38 / 0.17);
+  box-shadow: inset 2px 0 2px rgb(255 255 255 / 0.16), inset -3px 0 4px rgb(0 0 0 / 0.22), -3px 3px 5px rgb(20 35 38 / 0.22);
+}
+
+@keyframes cover-shimmer-wave {
+  0% { transform: translateX(-120%) skewX(-10deg); }
+  100% { transform: translateX(220%) skewX(-10deg); }
+}
+
+.cover-shimmer {
+  width: 58%;
+  background: linear-gradient(110deg, transparent 20%, rgb(255 255 255 / 0.72) 44%, rgb(255 244 221 / 0.9) 52%, transparent 76%);
+  animation: cover-shimmer-wave 1.45s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cover-shimmer { animation: none; opacity: 0.45; }
 }
 
 .scenic-book-spine-title {
   font-family: var(--font-aboreto), ui-serif, Georgia, serif;
-  font-size: 6px;
+  font-size: 6.5px;
   letter-spacing: 0.12em;
 }
 

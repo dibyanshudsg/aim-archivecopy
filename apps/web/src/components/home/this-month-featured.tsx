@@ -250,10 +250,12 @@ export function ThisMonthFeatured({
   const [currentIndex, setCurrentIndex] = useState(() => Math.max(0, visibleIssues.length - 1));
   const [slideDirection, setSlideDirection] = useState<-1|0|1>(0);
   const [heroHasEntered, setHeroHasEntered] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const reduceMotion = useReducedMotion();
 
   // Start each filtered set at its newest issue.
   useEffect(() => {
+    setPreviewOpen(false);
     setSlideDirection(0);
     const requested = pendingSelectionRef.current;
     const requestedIndex = requested ? visibleIssues.findIndex((issue) => issue.id === requested) : -1;
@@ -268,16 +270,19 @@ export function ThisMonthFeatured({
   }, [visibleIssues.length, currentIndex]);
 
   function goPrev() {
+    if (previewOpen) return;
     if (currentIndex <= 0) return;
     setSlideDirection(-1);
     setCurrentIndex((idx) => Math.max(0, idx - 1));
   }
   function goNext() {
+    if (previewOpen) return;
     if (currentIndex >= visibleIssues.length - 1) return;
     setSlideDirection(1);
     setCurrentIndex((idx) => Math.min(visibleIssues.length - 1, idx + 1));
   }
   function jumpTo(idx: number) {
+    if (previewOpen) return;
     if (idx === currentIndex) return;
     setSlideDirection(idx > currentIndex ? 1 : -1);
     setCurrentIndex(idx);
@@ -305,7 +310,7 @@ export function ThisMonthFeatured({
 
   function onHeroTouchStart(event: React.TouchEvent<HTMLDivElement>) {
     const target=event.target;
-    if(visibleIssues.length<=1||event.touches.length!==1||!(target instanceof Element)||!target.closest('[data-hero-swipe]')||target.closest('button,a,input,select,textarea,[role="button"]')){
+    if(previewOpen||visibleIssues.length<=1||event.touches.length!==1||!(target instanceof Element)||!target.closest('[data-hero-swipe]')||target.closest('button,a,input,select,textarea,[role="button"]')){
       swipeStartRef.current=null;
       return;
     }
@@ -329,6 +334,7 @@ export function ThisMonthFeatured({
   // Keyboard navigation — only when focus is inside the carousel section.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if (previewOpen) return;
       if (!containerRef.current?.contains(document.activeElement)) return;
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
@@ -342,7 +348,7 @@ export function ThisMonthFeatured({
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [visibleIssues.length]);
+  }, [previewOpen, visibleIssues.length]);
 
   // Preload neighbour issues' cover JPEGs and PDFs into the browser cache so
   // slide changes don't flash white. Cover JPEGs are ~100 KB and warm
@@ -439,10 +445,10 @@ export function ThisMonthFeatured({
                   onTouchEnd={onHeroTouchEnd}
                   onTouchCancel={()=>{swipeStartRef.current=null;}}
                 >
-                  <FeaturedSlide issue={currentIssue!} animateEntrance={!heroHasEntered} onHeroReady={() => setHeroHasEntered(true)} />
+                  <FeaturedSlide issue={currentIssue!} animateEntrance={!heroHasEntered} onHeroReady={() => setHeroHasEntered(true)} onPreviewChange={setPreviewOpen} />
                 </motion.div>
               </AnimatePresence>
-              <button type="button" onClick={goPrev} disabled={currentIndex<=0} aria-label="Show previous featured issue" className="group/left-edge absolute inset-y-0 left-0 z-20 hidden w-[11%] items-center justify-start pl-3 text-flame-600 md:flex lg:pl-5 disabled:cursor-not-allowed disabled:text-flame-300">
+              {!previewOpen && <><button type="button" onClick={goPrev} disabled={currentIndex<=0} aria-label="Show previous featured issue" className="group/left-edge absolute inset-y-0 left-0 z-20 hidden w-[11%] items-center justify-start pl-3 text-flame-600 md:flex lg:pl-5 disabled:cursor-not-allowed disabled:text-flame-300">
                 <span aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-flame-500/20 via-flame-300/8 to-transparent opacity-0 transition-opacity duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/left-edge:opacity-100 group-focus-visible/left-edge:opacity-100"/>
                 <ChevronLeft className="relative h-20 w-12 -translate-x-3 scale-y-150 opacity-0 drop-shadow-[0_2px_2px_rgba(255,255,255,0.95)] transition-[opacity,transform,color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/left-edge:translate-x-0 group-hover/left-edge:opacity-100 group-focus-visible/left-edge:translate-x-0 group-focus-visible/left-edge:opacity-100" strokeWidth={1.25}/>
               </button>
@@ -450,16 +456,17 @@ export function ThisMonthFeatured({
                 <span aria-hidden="true" className="absolute inset-0 bg-gradient-to-l from-flame-500/20 via-flame-300/8 to-transparent opacity-0 transition-opacity duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/right-edge:opacity-100 group-focus-visible/right-edge:opacity-100"/>
                 <ChevronRight className="relative h-20 w-12 translate-x-3 scale-y-150 opacity-0 drop-shadow-[0_2px_2px_rgba(255,255,255,0.95)] transition-[opacity,transform,color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/right-edge:translate-x-0 group-hover/right-edge:opacity-100 group-focus-visible/right-edge:translate-x-0 group-focus-visible/right-edge:opacity-100" strokeWidth={1.25}/>
               </button>
+              </>}
             </div>
 
-            <CarouselControls
+            {!previewOpen && <CarouselControls
               issues={visibleIssues}
               currentIndex={safeIndex}
               goPrev={goPrev}
               goNext={goNext}
               jumpTo={jumpTo}
               openPicker={() => setPickerOpen(true)}
-            />
+            />}
           </>
         )}
       </div>
@@ -775,7 +782,7 @@ function EmptyCard({
 }
 
 // ---------- Single slide (rich, focused — with embedded reader) ----------
-function FeaturedSlide({ issue, animateEntrance, onHeroReady }: { issue: ApiIssue; animateEntrance: boolean; onHeroReady: () => void }) {
+function FeaturedSlide({ issue, animateEntrance, onHeroReady, onPreviewChange }: { issue: ApiIssue; animateEntrance: boolean; onHeroReady: () => void; onPreviewChange: (open: boolean) => void }) {
   const router = useRouter();
   const reduceMotion = useReducedMotion();
   const { toggle, isBookmarked } = useBookmarks();
@@ -790,8 +797,13 @@ function FeaturedSlide({ issue, animateEntrance, onHeroReady }: { issue: ApiIssu
   function changePreview(open: boolean) {
     if (open && !issue.pdf_url) return;
     setPreviewOpen(open);
-    requestAnimationFrame(() => articleRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' }));
+    onPreviewChange(open);
   }
+
+  useEffect(() => {
+    if (!previewOpen) return;
+    articleRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+  }, [previewOpen, reduceMotion]);
 
   function openBook() {
     if (!issue.pdf_url) return;
@@ -810,7 +822,7 @@ function FeaturedSlide({ issue, animateEntrance, onHeroReady }: { issue: ApiIssu
   // but if a `pdf_url` ever lands null here we'd hand react-pdf a broken
   // input — so the carousel just won't render the slide.
   return (
-    <article ref={articleRef} className="scroll-mt-20 overflow-hidden bg-[#fffdf9]">
+    <article ref={articleRef} className="scroll-mt-[104px] overflow-hidden bg-[#fffdf9] sm:scroll-mt-[112px]">
       <AnimatePresence mode="wait" initial={false}>
       {!previewOpen ? <>
         <MobileScenicHero
@@ -849,8 +861,8 @@ function FeaturedSlide({ issue, animateEntrance, onHeroReady }: { issue: ApiIssu
             onHeroReady();
           }}
         />
-      </> : <motion.div key="preview" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -10 }} transition={{ duration: 0.24 }} onAnimationComplete={() => { if (previewOpen) backButtonRef.current?.focus(); }}>
-        <div className="flex items-center gap-2 border-b border-[#eadfce] px-4 py-3 sm:gap-4 sm:px-8">
+      </> : <motion.div key="preview" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -10 }} transition={{ duration: 0.24 }} onAnimationComplete={() => { if (previewOpen) backButtonRef.current?.focus({ preventScroll: true }); }}>
+        <div className="sticky top-[76px] z-30 flex items-center gap-2 border-b border-[#eadfce] bg-[#fffdf9]/95 px-4 py-3 shadow-[0_4px_14px_rgba(83,58,22,0.06)] backdrop-blur-sm sm:gap-4 sm:px-8">
           <button ref={backButtonRef} type="button" onClick={() => changePreview(false)} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gold-50 hover:text-gray-900">
             <ArrowLeft className="h-4 w-4" /> Back
           </button>

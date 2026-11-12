@@ -31,6 +31,7 @@ type PdfDocLike = import('pdfjs-dist').PDFDocumentProxy;
 interface AnimatedBookshelfProps {
   issues: ShelfIssue[];
   years: ShelfYear[];
+  archiveGrowthNote: string;
 }
 
 type BookMode = 'closed' | 'open' | 'closing';
@@ -995,6 +996,20 @@ function EmptyShelf() {
   );
 }
 
+function LoadingShelf() {
+  return (
+    <div className="space-y-5" role="status" aria-label="Loading archive editions">
+      <div className="flex min-h-[230px] items-end justify-center gap-3 px-1 pb-1 sm:min-h-[284px] sm:gap-4 lg:min-h-[334px]">
+        {[0, 1, 2, 3].map((item) => (
+          <div key={item} className="archive-skeleton-wave relative aspect-[5/7] w-[152px] overflow-hidden rounded-r-md rounded-l-sm bg-flame-50 shadow-sm sm:w-[178px] lg:w-[176px]" />
+        ))}
+      </div>
+      <Shelf />
+      <span className="sr-only">Loading editions…</span>
+    </div>
+  );
+}
+
 function useIssuesPerRow() {
   const [perRow, setPerRow] = useState(4);
 
@@ -1113,7 +1128,7 @@ function YearNavigator({
   );
 }
 
-export function AnimatedBookshelf({ issues: suppliedIssues, years }: AnimatedBookshelfProps) {
+export function AnimatedBookshelf({ issues: suppliedIssues, years, archiveGrowthNote }: AnimatedBookshelfProps) {
   const reduceMotion = useReducedMotion();
   const [issues, setIssues] = useState(suppliedIssues);
   const yearCache = useRef(new TtlCache<ShelfIssue[]>(60_000, 12));
@@ -1154,6 +1169,12 @@ export function AnimatedBookshelf({ issues: suppliedIssues, years }: AnimatedBoo
     return issueYears[issueYears.length - 1] ?? currentYear;
   }, [currentYear, issueYears, issues]);
   const [selectedYear, setSelectedYear] = useState(defaultYear);
+  const selectYear = useCallback((year: number) => {
+    if (year === selectedYear) return;
+    setYearLoading(true);
+    setYearError(false);
+    setSelectedYear(year);
+  }, [selectedYear]);
 
   useEffect(() => {
     if (suppliedIssues[0]) yearCache.current.set(String(suppliedIssues[0].year), suppliedIssues);
@@ -1338,10 +1359,12 @@ export function AnimatedBookshelf({ issues: suppliedIssues, years }: AnimatedBoo
             readableCount={readableCount}
             lockedCount={lockedCount}
             totalCount={yearIssues.length}
-            onChange={setSelectedYear}
+            onChange={selectYear}
           />
 
-          {visibleIssues.length > 0 ? (
+          {yearLoading ? (
+            <LoadingShelf />
+          ) : visibleIssues.length > 0 ? (
             <div className="space-y-5">
               {issueRows.map((rowIssues, rowIndex) => (
                 <IssueRow
@@ -1385,6 +1408,12 @@ export function AnimatedBookshelf({ issues: suppliedIssues, years }: AnimatedBoo
                   Browse the archive
                 </Link>
               )}
+            </div>
+          )}
+          {!yearLoading && !yearError && selectedYear === minYear && (
+            <div className="mx-auto mt-7 flex max-w-2xl items-start gap-3 rounded-2xl border border-gold-200/80 bg-white/80 px-4 py-3.5 text-left shadow-[0_10px_30px_rgba(120,84,28,0.07)]">
+              <LibraryBig className="mt-0.5 h-5 w-5 shrink-0 text-flame-600" aria-hidden="true" />
+              <p className="text-sm leading-relaxed text-gray-600">{archiveGrowthNote}</p>
             </div>
           )}
         </div>

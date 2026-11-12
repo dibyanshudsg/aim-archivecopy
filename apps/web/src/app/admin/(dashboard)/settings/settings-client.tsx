@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { ChevronDown, ExternalLink, ImageUp, MessageSquareText, Save, Settings } from 'lucide-react';
+import { BookOpenText, ChevronDown, ExternalLink, ImageUp, MessageSquareText, Save, Settings } from 'lucide-react';
 import { useUI } from '@/components/ui/toast';
 import type { AdminSiteSettings } from '@/lib/admin-data';
 import { AdminPageTitle } from '../admin-page-title';
@@ -11,12 +11,16 @@ import type { BrandAssets, BrandSlot } from '@/lib/brand-assets';
 const brandPlacements: { slot: BrandSlot; label: string; description: string }[] = [
   { slot: 'logo', label: 'Main logo', description: 'Header, footer and admin screens' },
   { slot: 'favicon', label: 'Favicon', description: 'Browser tab and saved shortcut' },
-  { slot: 'social', label: 'Social image', description: 'Shared links and preview cards' },
+  { slot: 'social', label: 'Social image', description: '1200 × 630 shared-link preview cards' },
 ];
 
 interface SiteSettingsForm {
   feedback_form_url: string;
   feedback_form_edit_url: string;
+  archive_intro_quote: string;
+  archive_intro_attribution: string;
+  archive_intro_description: string;
+  archive_growth_note: string;
 }
 
 export function AdminSettingsClient({
@@ -89,8 +93,12 @@ export function AdminSettingsClient({
       setForm({
         feedback_form_url: data.feedback_form_url ?? '',
         feedback_form_edit_url: data.feedback_form_edit_url ?? '',
+        archive_intro_quote: data.archive_intro_quote ?? '',
+        archive_intro_attribution: data.archive_intro_attribution ?? '',
+        archive_intro_description: data.archive_intro_description ?? '',
+        archive_growth_note: data.archive_growth_note ?? '',
       });
-      toast.success('Feedback settings saved');
+      toast.success('Site settings saved');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save settings';
       setError(message);
@@ -147,6 +155,38 @@ export function AdminSettingsClient({
           </div>)}
         </div>
         <button type="button" disabled={brandSaving || !brandFile || !Object.values(selected).some(Boolean)} onClick={uploadBrand} className="mt-5 rounded-xl bg-flame-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-flame-700 disabled:opacity-50">{brandSaving ? 'Updating images…' : 'Update selected images'}</button>
+      </section>
+
+      <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm" aria-labelledby="archive-copy-title">
+        <div className="mb-5 flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-flame-50 text-flame-700"><BookOpenText className="h-5 w-5" /></span>
+          <div><h2 id="archive-copy-title" className="text-base font-semibold text-gray-900">Archive presentation</h2><p className="mt-1 text-sm text-gray-600">Edit the introduction on the home page and the progress note shown at the beginning of the archive.</p></div>
+        </div>
+        <div className="space-y-5">
+          <label className="block">
+            <span className="text-sm font-medium text-gray-700">Opening quotation</span>
+            <input type="text" maxLength={160} value={form.archive_intro_quote} onChange={(event) => setForm((current) => ({ ...current, archive_intro_quote: event.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-flame-300 focus:outline-none focus:ring-2 focus:ring-flame-100" />
+          </label>
+          <label className="block">
+            <span className="text-sm font-medium text-gray-700">Attribution</span>
+            <input type="text" maxLength={100} value={form.archive_intro_attribution} onChange={(event) => setForm((current) => ({ ...current, archive_intro_attribution: event.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-flame-300 focus:outline-none focus:ring-2 focus:ring-flame-100" />
+          </label>
+          <label className="block">
+            <span className="text-sm font-medium text-gray-700">Archive description</span>
+            <textarea rows={4} maxLength={600} value={form.archive_intro_description} onChange={(event) => setForm((current) => ({ ...current, archive_intro_description: event.target.value }))} className="mt-1 w-full resize-y rounded-xl border border-gray-200 px-4 py-2.5 text-sm leading-relaxed focus:border-flame-300 focus:outline-none focus:ring-2 focus:ring-flame-100" />
+          </label>
+          <label className="block">
+            <span className="text-sm font-medium text-gray-700">Earlier-issues progress note</span>
+            <textarea rows={3} maxLength={400} value={form.archive_growth_note} onChange={(event) => setForm((current) => ({ ...current, archive_growth_note: event.target.value }))} className="mt-1 w-full resize-y rounded-xl border border-gray-200 px-4 py-2.5 text-sm leading-relaxed focus:border-flame-300 focus:outline-none focus:ring-2 focus:ring-flame-100" />
+            <span className="mt-1 block text-xs text-gray-400">Shown only at the earliest archive boundary on Home and Browse.</span>
+          </label>
+          <div className="flex justify-end border-t border-gray-100 pt-4">
+            <button type="button" onClick={saveSettings} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-gold-500 to-flame-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_8px_22px_rgba(190,140,46,0.22)] transition-all hover:from-gold-600 hover:to-flame-600 disabled:opacity-50">
+              <Save className="h-4 w-4" />
+              {saving ? 'Saving...' : 'Save archive text'}
+            </button>
+          </div>
+        </div>
       </section>
 
       <details className="group overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">

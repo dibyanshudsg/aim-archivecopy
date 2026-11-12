@@ -44,12 +44,20 @@ export async function POST(request: NextRequest) {
     const keys: Partial<Record<BrandSlot, string>> = {};
     try {
       for (const slot of slots) {
-        const size = slot === 'favicon' ? 256 : slot === 'social' ? 1200 : 128;
-        const canvas = createCanvas(size, size);
-        const scale = Math.min(size / imageSource.width, size / imageSource.height);
+        const target = slot === 'social'
+          ? { width: 1200, height: 630 }
+          : { width: slot === 'favicon' ? 256 : 128, height: slot === 'favicon' ? 256 : 128 };
+        const canvas = createCanvas(target.width, target.height);
+        const scale = Math.min(target.width / imageSource.width, target.height / imageSource.height);
         const width = Math.round(imageSource.width * scale);
         const height = Math.round(imageSource.height * scale);
-        canvas.getContext('2d').drawImage(imageSource, Math.floor((size - width) / 2), Math.floor((size - height) / 2), width, height);
+        canvas.getContext('2d').drawImage(
+          imageSource,
+          Math.floor((target.width - width) / 2),
+          Math.floor((target.height - height) / 2),
+          width,
+          height,
+        );
         const image = canvas.toBuffer('image/png');
         if (image.length > 2 * 1024 * 1024) throw new Error('Processed image is too large');
         const key = `brand/${slot}/${crypto.randomUUID()}.png`;

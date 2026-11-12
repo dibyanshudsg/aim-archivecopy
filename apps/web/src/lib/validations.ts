@@ -84,6 +84,10 @@ const optionalUrl = z
 export const siteSettingsSchema = z.object({
   feedback_form_url: optionalUrl,
   feedback_form_edit_url: optionalUrl,
+  archive_intro_quote: z.string().trim().min(1, 'Archive quote is required').max(160),
+  archive_intro_attribution: z.string().trim().min(1, 'Quote attribution is required').max(100),
+  archive_intro_description: z.string().trim().min(1, 'Archive description is required').max(600),
+  archive_growth_note: z.string().trim().min(1, 'Archive growth note is required').max(400),
 });
 
 const navigationMenuKeySchema = z.enum([

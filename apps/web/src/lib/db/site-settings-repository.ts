@@ -1,7 +1,14 @@
 import { getDb, nowIso } from './client';
 import { DEFAULT_SITE_SETTINGS, type SiteSettings } from '@/lib/site-settings';
 
-const SETTING_KEYS = ['feedback_form_url', 'feedback_form_edit_url'] as const;
+const SETTING_KEYS = [
+  'feedback_form_url',
+  'feedback_form_edit_url',
+  'archive_intro_quote',
+  'archive_intro_attribution',
+  'archive_intro_description',
+  'archive_growth_note',
+] as const;
 
 export async function readSiteSettingsFromDb(): Promise<SiteSettings> {
   const result = await getDb().execute({
@@ -11,7 +18,7 @@ export async function readSiteSettingsFromDb(): Promise<SiteSettings> {
 
   return result.rows.reduce<SiteSettings>((acc, row) => {
     const key = String(row.key) as keyof SiteSettings;
-    if (key === 'feedback_form_url' || key === 'feedback_form_edit_url') {
+    if (SETTING_KEYS.includes(key as (typeof SETTING_KEYS)[number])) {
       acc[key] = typeof row.value === 'string' && row.value.trim() ? row.value : acc[key];
     }
     return acc;

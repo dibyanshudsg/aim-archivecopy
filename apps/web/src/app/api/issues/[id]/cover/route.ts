@@ -1,10 +1,11 @@
 import { deliverCover } from '@/lib/cover-delivery';
 import { publicRateLimit } from '@/lib/rate-limit';
-import { createCanvas, loadImage } from 'canvas';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function dominantColour(bytes: Buffer) {
+async function dominantColour(bytes: Buffer) {
+  // Canvas is a large native dependency. Only palette requests need it.
+  const { createCanvas, loadImage } = await import('canvas');
   return loadImage(bytes).then((image) => {
     const canvas = createCanvas(32, 48);
     const context = canvas.getContext('2d');
