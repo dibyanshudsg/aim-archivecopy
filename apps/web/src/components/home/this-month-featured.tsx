@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { getImageProps, type StaticImageData } from 'next/image';
 import Image from '@/components/magazine/archive-image';
@@ -37,6 +37,7 @@ interface ThisMonthFeaturedProps {
   /** One server-selected live issue per magazine. */
   issues: ApiIssue[];
   archiveIssues: HeroPickerIssue[];
+  onPreviewChange?: (open: boolean) => void;
 }
 
 type CoverPalette = { dominant: string; foreground: string; accents?: string[] };
@@ -182,6 +183,7 @@ export function ThisMonthFeatured({
   magazines,
   issues,
   archiveIssues,
+  onPreviewChange,
 }: ThisMonthFeaturedProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -252,6 +254,10 @@ export function ThisMonthFeatured({
   const [heroHasEntered, setHeroHasEntered] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    onPreviewChange?.(previewOpen);
+  }, [onPreviewChange, previewOpen]);
 
   // Start each filtered set at its newest issue.
   useEffect(() => {
@@ -823,8 +829,11 @@ function FeaturedSlide({ issue, animateEntrance, onHeroReady, onPreviewChange }:
   // input — so the carousel just won't render the slide.
   return (
     <article ref={articleRef} className="scroll-mt-[104px] overflow-hidden bg-[#fffdf9] sm:scroll-mt-[112px]">
-      <AnimatePresence mode="wait" initial={false}>
-      {!previewOpen ? <>
+      <div
+        aria-hidden={previewOpen || undefined}
+        inert={previewOpen || undefined}
+        className={previewOpen ? 'hidden' : undefined}
+      >
         <MobileScenicHero
           issue={issue}
           eyebrow={eyebrow}
@@ -861,25 +870,29 @@ function FeaturedSlide({ issue, animateEntrance, onHeroReady, onPreviewChange }:
             onHeroReady();
           }}
         />
-      </> : <motion.div key="preview" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -10 }} transition={{ duration: 0.24 }} onAnimationComplete={() => { if (previewOpen) backButtonRef.current?.focus({ preventScroll: true }); }}>
-        <div className="sticky top-[76px] z-30 flex items-center gap-2 border-b border-[#eadfce] bg-[#fffdf9]/95 px-4 py-3 shadow-[0_4px_14px_rgba(83,58,22,0.06)] backdrop-blur-sm sm:gap-4 sm:px-8">
-          <button ref={backButtonRef} type="button" onClick={() => changePreview(false)} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gold-50 hover:text-gray-900">
-            <ArrowLeft className="h-4 w-4" /> Back
-          </button>
-          <button type="button" onClick={() => changePreview(false)} aria-label={`Show details for ${issue.title}`} className="inline-flex min-w-0 max-w-full items-center gap-2.5 rounded-xl border border-gold-200 bg-white px-2.5 py-2 text-left shadow-[0_4px_12px_rgba(83,58,22,0.09)] transition-colors hover:border-gold-300 hover:bg-gold-50">
-            <span className="relative h-10 w-8 shrink-0 overflow-hidden rounded-md bg-gold-50">
-              {issue.cover_image_url ? <Image src={issue.cover_image_url} alt="" fill sizes="32px" className="object-cover" /> : null}
-            </span>
-            <span className="min-w-0">
-              <strong className="block truncate text-sm font-semibold text-gray-900">{issue.magazines.name}</strong>
-              <span className="block text-xs text-gray-600">{monthName} {issue.year}</span>
-            </span>
-          </button>
+      </div>
+      <AnimatePresence initial={false}>
+      {previewOpen ? <motion.div key="preview" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -10 }} transition={{ duration: 0.24 }} onAnimationComplete={() => { if (previewOpen) backButtonRef.current?.focus({ preventScroll: true }); }}>
+        <div className="pointer-events-none sticky top-0 z-30 h-0">
+          <div className="pointer-events-auto absolute left-3 top-3 flex w-[calc(100vw-1.5rem)] items-center gap-2 sm:left-8 sm:top-4 sm:w-auto sm:gap-3">
+            <button ref={backButtonRef} type="button" onClick={() => changePreview(false)} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border border-gold-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 shadow-[0_4px_12px_rgba(83,58,22,0.09)] transition-colors hover:border-gold-300 hover:bg-gold-50 hover:text-gray-900">
+              <ArrowLeft className="h-4 w-4" /> Back
+            </button>
+            <button type="button" onClick={() => changePreview(false)} aria-label={`Show details for ${issue.title}`} className="inline-flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-gold-200 bg-white px-2.5 py-2 text-left shadow-[0_4px_12px_rgba(83,58,22,0.09)] transition-colors hover:border-gold-300 hover:bg-gold-50 sm:max-w-xs sm:flex-none">
+              <span className="relative h-10 w-8 shrink-0 overflow-hidden rounded-md bg-gold-50">
+                {issue.cover_image_url ? <Image src={issue.cover_image_url} alt="" fill sizes="32px" className="object-cover" /> : null}
+              </span>
+              <span className="min-w-0">
+                <strong className="block truncate text-sm font-semibold text-gray-900">{issue.magazines.name}</strong>
+                <span className="block text-xs text-gray-600">{monthName} {issue.year}</span>
+              </span>
+            </button>
+          </div>
         </div>
         <div id={`preview-${issue.id}`}>
           <SlideReader issueId={issue.id} pdfUrl={issue.pdf_url!} fallbackCoverUrl={issue.cover_image_url} fallbackTitle={issue.title} magazineName={issue.magazines.name} monthName={monthName} year={issue.year} language={language} />
         </div>
-      </motion.div>}
+      </motion.div> : null}
       </AnimatePresence>
     </article>
   );
@@ -905,6 +918,56 @@ function ScenicBookCover({issue,sizes,phone=false,onCoverLoad}:{issue:ApiIssue;s
     </>:<span className={phone?'flex h-full items-center justify-center bg-white/90 p-5 text-center font-heading text-lg':'flex h-full items-center justify-center bg-[#f7efe0] px-6 text-center font-heading text-xl text-[#163e61]'}>{issue.title}</span>}
     <span className="scenic-book-sheen" aria-hidden="true" />
   </span>;
+}
+
+function HeroDescriptionSummary({
+  description,
+  color,
+  issueId,
+  mobile = false,
+}: {
+  description: string;
+  color: string;
+  issueId: string;
+  mobile?: boolean;
+}) {
+  const textRef = useRef<HTMLParagraphElement>(null);
+  const [truncated, setTruncated] = useState(false);
+
+  useLayoutEffect(() => {
+    const text = textRef.current;
+    if (!text) return;
+    const measure = () => setTruncated(text.scrollHeight > text.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(text);
+    return () => observer.disconnect();
+  }, [description, mobile]);
+
+  return (
+    <div className={mobile ? 'mt-3' : 'mt-5 max-w-[59ch]'}>
+      <p
+        ref={textRef}
+        className={cn(
+          'transition-colors duration-300',
+          mobile ? 'text-sm leading-6' : 'text-[clamp(0.95rem,1.15vw,1.15rem)] leading-[1.75]',
+          mobile ? 'line-clamp-2' : 'line-clamp-3',
+        )}
+        style={{ color }}
+      >
+        {description}
+      </p>
+      {truncated ? (
+        <Link
+          href={issueDetailPath(issueId)}
+          className="mt-1.5 inline-block rounded-md px-1 py-1 text-xs font-semibold underline decoration-current/35 underline-offset-4 transition-opacity hover:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-2"
+          style={{ color }}
+        >
+          View more
+        </Link>
+      ) : null}
+    </div>
+  );
 }
 
 function MobileScenicHero({ issue, eyebrow, monthName, bookmarked, onBookmark, onPreview, onBookOpen, animateEntrance, onReady, backgroundSrc, theme, buttonTheme, coverPalette, onCoverLoad }: {
@@ -942,7 +1005,7 @@ function MobileScenicHero({ issue, eyebrow, monthName, bookmarked, onBookmark, o
     <div className="bg-white px-7 py-6">
       <p className="text-[10px] font-semibold uppercase tracking-[.18em] transition-colors duration-300" style={{color:issueColours.body}}>{eyebrow}</p>
       <h1 className="mt-2 font-heading text-[clamp(1.9rem,9vw,3rem)] leading-none transition-colors duration-300" style={{color:issueColours.heading}}>{issue.theme || issue.title}</h1>
-      {issue.description && <p className="mt-3 line-clamp-2 text-sm leading-6 transition-colors duration-300" style={{color:issueColours.body}}>{issue.description}</p>}
+      {issue.description ? <HeroDescriptionSummary description={issue.description} color={issueColours.body} issueId={issue.id} mobile /> : null}
       <div className="mt-4 flex gap-2">
         {issue.pdf_url?<Link href={readerPath(issue.id)} onClick={() => rememberReaderSource(issue.id,'shelf')} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white transition-colors duration-300" style={{background:issueColours.button,color:issueColours.buttonForeground}}><BookOpen className="h-4 w-4"/>Read issue</Link>:<span className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white transition-colors duration-300" style={{background:issueColours.button,color:issueColours.buttonForeground}}><BookOpen className="h-4 w-4"/>Embargoed</span>}
         <button type="button" onClick={onPreview} disabled={!issue.pdf_url} aria-label="Preview pages" className="flex h-11 w-11 items-center justify-center rounded-xl border bg-white/80 transition-colors duration-300 disabled:cursor-not-allowed disabled:opacity-50" style={{color:issueColours.heading,borderColor:issueColours.body}}><FileText className="h-5 w-5"/></button>
@@ -1062,9 +1125,7 @@ export function DesktopScenicHero({
         <h1 className={cn('mt-5 max-w-[13ch] font-heading leading-[1.03] tracking-[-0.025em] transition-colors duration-300', compact ? 'text-[clamp(2.25rem,4vw,4rem)]' : 'text-[clamp(2.7rem,4.6vw,5rem)]')} style={{ color: issueColours.heading }}>
           {issue.theme || issue.title}
         </h1>
-        {issue.description && (
-          <p className="mt-5 line-clamp-3 max-w-[59ch] text-[clamp(0.95rem,1.15vw,1.15rem)] leading-[1.75] transition-colors duration-300" style={{ color: issueColours.body }}>{issue.description}</p>
-        )}
+        {issue.description ? <HeroDescriptionSummary description={issue.description} color={issueColours.body} issueId={issue.id} /> : null}
 
         <div className="mt-8 flex items-center gap-3">
           {issue.pdf_url?<Link href={readerPath(issue.id)} onClick={() => rememberReaderSource(issue.id, 'shelf')} className="scenic-primary-action inline-flex min-h-12 items-center gap-3 rounded-xl px-7 py-3 text-base font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#123e62]" style={{ background: issueColours.button, color: issueColours.buttonForeground }}>

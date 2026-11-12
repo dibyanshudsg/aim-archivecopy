@@ -1,14 +1,17 @@
 'use client';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Image from '@/components/magazine/archive-image';
+import Link from 'next/link';
 import { AnimatePresence, motion, useReducedMotion, type PanInfo } from 'framer-motion';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { usePdfRetry } from '@/lib/use-pdf-retry';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
+import { ArrowRight, BookOpen, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
 import { LANGUAGE_NAMES, type Language } from '@aim-archive/shared';
 import { cn } from '@/lib/utils';
 import { configurePdfWorker } from '@/lib/pdf-worker-client';
+import { readerPath, rememberReaderSource } from '@/lib/reader-url';
 configurePdfWorker(pdfjs);
+const PREVIEW_PAGE_LIMIT = 8;
 function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(false);
   useEffect(() => {
@@ -42,14 +45,15 @@ export default function SlideReader({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
-  const mobileSentinelRef = useRef<HTMLDivElement>(null);
   const bookCardRef = useRef<HTMLDivElement>(null);
+  const draggedRef = useRef(false);
   const [baseBookWidth, setBaseBookWidth] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const pdfRetry = usePdfRetry(pdfUrl);
   const [numPages, setNumPages] = useState<number | null>(null);
-  const [mobileRenderedCount, setMobileRenderedCount] = useState(3);
   const [loadError, setLoadError] = useState(false);
+  const [bookOpened, setBookOpened] = useState(false);
+  const [previewStarted, setPreviewStarted] = useState(!fallbackCoverUrl);
   /** 1 = next-page motion, -1 = prev-page motion. */
   const [pageDirection, setPageDirection] = useState(1);
   /** Flips true the first time react-pdf signals page 1 has finished
@@ -85,55 +89,42 @@ export default function SlideReader({
       window.removeEventListener('resize', measure);
     };
   }, [isPhone, isSpread]);
-  useEffect(() => {
-    setMobileRenderedCount(3);
-  }, [pdfUrl]);
-  useEffect(() => {
-    if (!isPhone || !numPages || mobileRenderedCount >= numPages) return;
-    const sentinel = mobileSentinelRef.current;
-    if (!sentinel) return;
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) setMobileRenderedCount((count) => Math.min(numPages, count + 3));
-    }, { rootMargin: '600px 0px' });
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [isPhone, mobileRenderedCount, numPages]);
   /** Step size — turn the whole spread (2 pages) on desktop, single page on
    *  smaller viewports. */
   const step = isSpread ? 2 : 1;
+  const previewPageCount = Math.min(numPages ?? PREVIEW_PAGE_LIMIT, PREVIEW_PAGE_LIMIT);
+  const firstPreviewPage = fallbackCoverUrl && previewPageCount > 1 ? 2 : 1;
+  const lastPageAnchor = isSpread
+    ? Math.max(firstPreviewPage, previewPageCount - ((previewPageCount - firstPreviewPage) % 2))
+    : previewPageCount;
 
-  // Snap page to an odd anchor when toggling into spread mode so the spread
-  // is always (page, page+1).
+  // Once the cover opens, desktop spreads pair interior pages (2, 3), (4, 5), etc.
   useEffect(() => {
-    if (isSpread && page % 2 === 0) {
-      setPage((p) => Math.max(1, p - 1));
+    if (isSpread && previewStarted && page > firstPreviewPage && (page - firstPreviewPage) % 2 !== 0) {
+      setPage((p) => Math.max(firstPreviewPage, p - 1));
     }
-  }, [isSpread, page]);
+  }, [firstPreviewPage, isSpread, page, previewStarted]);
 
   // Stable file object so react-pdf doesn't re-fetch on every render.
   const file = useMemo(() => ({ url: pdfUrl }), [pdfUrl]);
 
   function goPrev() {
     setPage((p) => {
-      if (p <= 1) return p;
+      if (p <= firstPreviewPage) return p;
       setPageDirection(-1);
-      return Math.max(1, p - step);
+      return Math.max(firstPreviewPage, p - step);
     });
   }
   function goNext() {
     setPage((p) => {
-      if (!numPages) {
-        setPageDirection(1);
-        return p + step;
-      }
-      if (p + step > numPages && (!isSpread || p >= numPages)) return p;
+      if (p >= lastPageAnchor) return p;
       setPageDirection(1);
-      return Math.min(numPages, p + step);
+      return Math.min(lastPageAnchor, p + step);
     });
   }
 
-  const canGoPrev = page > 1;
-  const canGoNext = numPages ? page < numPages : true;
+  const canGoPrev = previewStarted && page > firstPreviewPage;
+  const canGoNext = previewStarted && page < lastPageAnchor;
 
   const SPREAD_GAP_PX = 8;
   const widthByColumn = baseBookWidth
@@ -190,8 +181,19 @@ export default function SlideReader({
 
   // Cover the PDF until the first page of a newly selected file has rendered.
   useEffect(() => {
+    setPage(1);
+    setNumPages(null);
+    setLoadError(false);
     setPage1Rendered(false);
-  }, [pdfUrl]);
+    setBookOpened(false);
+    setPreviewStarted(!fallbackCoverUrl);
+    const timer = window.setTimeout(() => setBookOpened(true), reduceMotion ? 0 : 420);
+    return () => window.clearTimeout(timer);
+  }, [fallbackCoverUrl, pdfUrl, reduceMotion]);
+
+  useEffect(() => {
+    if (page > lastPageAnchor) setPage(lastPageAnchor);
+  }, [lastPageAnchor, page]);
 
   // First-time swipe hint — gated on `localStorage` so it only ever shows
   // once per browser. Mobile/tablet only (desktop has visible side arrows).
@@ -221,6 +223,7 @@ export default function SlideReader({
     const offset = info.offset.x;
     const distance = Math.abs(offset);
     const speed = Math.abs(info.velocity.x);
+    draggedRef.current = distance >= 8;
     dismissSwipeHint();
     if (distance < 30 && speed < 200) return;
     if (offset < 0) goNext();
@@ -228,50 +231,13 @@ export default function SlideReader({
   }
 
   const pageLabel = (() => {
-    if (!numPages) return `${page}`;
+    if (!numPages) return `${page} / ${PREVIEW_PAGE_LIMIT}`;
     if (isSpread) {
-      const right = page + 1 <= numPages ? page + 1 : null;
-      return right ? `${page}–${right} / ${numPages}` : `${page} / ${numPages}`;
+      const right = page + 1 <= previewPageCount ? page + 1 : null;
+      return right ? `${page}–${right} / ${previewPageCount}` : `${page} / ${previewPageCount}`;
     }
-    return `${page} / ${numPages}`;
+    return `${page} / ${previewPageCount}`;
   })();
-
-  if (isPhone) {
-    const phonePageWidth = baseBookWidth ? Math.floor(baseBookWidth) : 0;
-    return (
-      <div ref={scrollerRef} className="w-full overflow-x-hidden bg-white px-3 py-5">
-        {loadError ? (
-          <div className="relative mx-auto aspect-[3/4] w-full max-w-md">
-            <CoverFallback coverUrl={fallbackCoverUrl} magazineName={magazineName} monthName={monthName} year={year} language={language} title={fallbackTitle} />
-          </div>
-        ) : phonePageWidth > 0 ? (
-          <Document
-            key={`${pdfUrl}:${pdfRetry.revision}`}
-            file={file}
-            onLoadSuccess={({ numPages: n }) => setNumPages(n)}
-            onLoadError={(error) => { if (!pdfRetry.retry(error)) setLoadError(true); }}
-            onSourceError={(error) => { if (!pdfRetry.retry(error)) setLoadError(true); }}
-            loading={fallbackCoverUrl ? <PdfCoverImage coverUrl={fallbackCoverUrl} title={fallbackTitle} pageWidth={phonePageWidth} decorative={false} /> : <PageTurnSkeleton width={phonePageWidth} />}
-            className="mx-auto flex max-w-full flex-col items-center gap-4"
-          >
-            {Array.from({ length: Math.min(numPages ?? 1, mobileRenderedCount) }, (_, index) => (
-              <div key={index + 1} className="max-w-full overflow-hidden bg-white shadow-sm">
-                <Page
-                  pageNumber={index + 1}
-                  width={phonePageWidth}
-                  devicePixelRatio={hiDPI}
-                  renderTextLayer={false}
-                  renderAnnotationLayer={false}
-                  loading={index === 0 && fallbackCoverUrl ? <PdfCoverImage coverUrl={fallbackCoverUrl} title={fallbackTitle} pageWidth={phonePageWidth} decorative={false} /> : <PageTurnSkeleton width={phonePageWidth} />}
-                />
-              </div>
-            ))}
-          </Document>
-        ) : null}
-        {numPages && mobileRenderedCount < numPages ? <div ref={mobileSentinelRef} className="h-4" aria-hidden="true" /> : null}
-      </div>
-    );
-  }
 
   return (
     <div
@@ -301,8 +267,21 @@ export default function SlideReader({
           drag="x"
           dragConstraints={{ left: 0, right: 0 }}
           dragElastic={0.18}
+          onDragStart={() => { draggedRef.current = false; }}
           onDragEnd={handleSwipe}
-          className="home-preview-book relative flex min-w-0 cursor-grab items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-gold-50 via-flame-50/60 to-gold-50 shadow-[0_8px_28px_rgba(190,140,46,0.12)] active:cursor-grabbing"
+          onClick={() => {
+            if (draggedRef.current) {
+              draggedRef.current = false;
+              return;
+            }
+            if (canGoNext) goNext();
+          }}
+          role="group"
+          aria-label={`Preview of ${fallbackTitle}. Click or swipe to turn pages.`}
+          className={cn(
+            'home-preview-book relative flex min-w-0 cursor-grab items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-gold-50 via-flame-50/60 to-gold-50 shadow-[0_8px_28px_rgba(190,140,46,0.12)] active:cursor-grabbing',
+            canGoNext && 'cursor-pointer',
+          )}
         >
           {/* "Magazine on a table" shadow */}
           <div className="pointer-events-none absolute inset-x-1/4 bottom-3 h-3 rounded-full bg-black/10 blur-xl" />
@@ -342,18 +321,37 @@ export default function SlideReader({
                   <PageTurnSkeleton width={renderedPageWidth} />
                 )
               }
-              className="flex h-full w-full items-center justify-center"
+              className={cn(
+                'flex h-full w-full items-center justify-center transition-opacity duration-200',
+                previewStarted ? 'opacity-100' : 'opacity-0',
+              )}
             >
+              <AnimatePresence initial={false} mode="wait" custom={pageDirection}>
                 <motion.div
                   key={`${isSpread ? 'spread' : 'single'}-${page}`}
                   custom={pageDirection}
-                  initial={
-                    reduceMotion ? false : { x: pageDirection * 20, opacity: 0.75 }
-                  }
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ duration: 0.16, ease: 'easeOut' }}
+                  variants={{
+                    enter: (direction: number) => reduceMotion ? { opacity: 0 } : {
+                      x: direction * 34,
+                      rotateY: direction * -7,
+                      opacity: 0,
+                      filter: 'blur(3px)',
+                    },
+                    visible: { x: 0, rotateY: 0, opacity: 1, filter: 'blur(0px)' },
+                    leave: (direction: number) => reduceMotion ? { opacity: 0 } : {
+                      x: direction * -28,
+                      rotateY: direction * 6,
+                      opacity: 0,
+                      filter: 'blur(2px)',
+                    },
+                  }}
+                  initial="enter"
+                  animate="visible"
+                  exit="leave"
+                  transition={{ duration: reduceMotion ? 0.12 : 0.38, ease: [0.16, 1, 0.3, 1] }}
+                  style={{ transformOrigin: pageDirection > 0 ? 'left center' : 'right center' }}
                   className={cn(
-                    'flex w-full items-stretch justify-center',
+                    'flex w-full items-stretch justify-center [perspective:1400px]',
                     isSpread ? 'gap-2' : 'gap-0',
                   )}
                 >
@@ -385,7 +383,7 @@ export default function SlideReader({
                     }
                     className="!h-auto overflow-hidden"
                   />
-                  {isSpread && numPages && page + 1 <= numPages && (
+                  {isSpread && numPages && page + 1 <= previewPageCount && (
                     <Page
                       pageNumber={page + 1}
                       width={renderedPageWidth}
@@ -397,25 +395,44 @@ export default function SlideReader({
                     />
                   )}
                 </motion.div>
+              </AnimatePresence>
             </Document>
           )}
 
-          {/* Keep the cover opaque until the canvas is painted underneath.
-              The disclosure moves the section; loading must not fade it again. */}
-          {!loadError && fallbackCoverUrl && page === 1 && !page1Rendered && (
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center"
-            >
-              <PdfLoadingSpread
-                coverUrl={fallbackCoverUrl}
-                title={fallbackTitle}
-                pageWidth={renderedPageWidth}
-                isSpread={isSpread}
-                decorative
-              />
-            </div>
-          )}
+          {/* Open the familiar 3D cover before revealing the limited preview. */}
+          <AnimatePresence onExitComplete={() => {
+            setPage(firstPreviewPage);
+            setPreviewStarted(true);
+          }}>
+            {!loadError && fallbackCoverUrl && !previewStarted && (!bookOpened || !page1Rendered) && (
+              <motion.div
+                key="opening-cover"
+                aria-hidden
+                initial={{ opacity: 1, rotateY: 0, x: '-50%' }}
+                animate={{ opacity: 1, rotateY: 0, x: '-50%' }}
+                exit={reduceMotion ? { opacity: 0 } : { opacity: 0, rotateY: -108, x: '-66%' }}
+                transition={{ duration: reduceMotion ? 0.12 : 0.68, ease: [0.16, 1, 0.3, 1] }}
+                style={{
+                  width: renderedPageWidth,
+                  height: Math.round(renderedPageWidth * 1.4),
+                  left: '50%',
+                  top: '50%',
+                  translate: '0 -50%',
+                  transformOrigin: 'left center',
+                  transformStyle: 'preserve-3d',
+                }}
+                className="pointer-events-none absolute z-20 overflow-hidden rounded-r-md bg-white shadow-[12px_12px_32px_rgba(55,43,24,0.22)] [backface-visibility:hidden] [perspective:1500px]"
+              >
+                <PdfCoverImage
+                  coverUrl={fallbackCoverUrl}
+                  title={fallbackTitle}
+                  pageWidth={renderedPageWidth}
+                  decorative
+                  className="h-full w-full object-contain"
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* First-time swipe hint — bottom-center of the book card.
               Appears once per browser on mobile/tablet, dismisses on first
@@ -477,24 +494,31 @@ export default function SlideReader({
             </div>
           )}
 
-        {!loadError && (
+        {!loadError && previewStarted && (canGoNext ? (
           <button
             type="button"
             onClick={goNext}
-            disabled={!canGoNext}
-            aria-label={isSpread ? 'Next spread' : 'Next page'}
-            className="absolute right-2 top-1/2 z-40 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border-2 border-flame-300 bg-white text-flame-600 shadow-md transition-all hover:border-flame-500 hover:bg-flame-50 hover:text-flame-700 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-white/70 disabled:text-gray-300 disabled:shadow-none lg:flex"
+            aria-label={isSpread ? 'Next preview spread' : 'Next preview page'}
+            className="absolute right-2 top-1/2 z-40 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border-2 border-flame-300 bg-white text-flame-600 shadow-md transition-all hover:border-flame-500 hover:bg-flame-50 hover:text-flame-700 lg:flex"
           >
             <ChevronRight className="h-6 w-6" strokeWidth={2.5} />
           </button>
-        )}
+        ) : (
+          <Link
+            href={readerPath(issueId)}
+            onClick={() => rememberReaderSource(issueId, 'shelf')}
+            className="absolute right-2 top-1/2 z-40 hidden -translate-y-1/2 items-center gap-2 rounded-full bg-flame-600 px-5 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:bg-flame-700 hover:shadow-xl lg:flex"
+          >
+            <BookOpen className="h-4 w-4" /> Read issue <ArrowRight className="h-4 w-4" />
+          </Link>
+        ))}
       </div>
 
       {/* Page indicator pill — centered below the book.
           Mobile/tablet: prev/next arrows live INSIDE the pill (since the
           side arrows are hidden < lg). Desktop: just the label. */}
       <div className="mt-5 flex min-h-[54px] justify-center lg:min-h-[34px]">
-        {!loadError && numPages !== null && (
+        {!loadError && previewStarted && numPages !== null && (
           <div className="flex items-center gap-2 rounded-full border border-flame-200/60 bg-white/80 px-2 py-1 shadow-sm">
             <button
               type="button"
@@ -508,15 +532,24 @@ export default function SlideReader({
             <span className="font-heading px-3 text-base font-semibold tabular-nums text-gray-700">
               {pageLabel}
             </span>
-            <button
-              type="button"
-              onClick={goNext}
-              disabled={!canGoNext}
-              aria-label={isSpread ? 'Next spread' : 'Next page'}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-flame-300 bg-white text-flame-600 transition-all hover:border-flame-500 hover:bg-flame-50 hover:text-flame-700 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-white/70 disabled:text-gray-300 lg:hidden"
-            >
-              <ChevronRight className="h-5 w-5" strokeWidth={2.5} />
-            </button>
+            {canGoNext ? (
+              <button
+                type="button"
+                onClick={goNext}
+                aria-label={isSpread ? 'Next preview spread' : 'Next preview page'}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-flame-300 bg-white text-flame-600 transition-all hover:border-flame-500 hover:bg-flame-50 hover:text-flame-700 lg:hidden"
+              >
+                <ChevronRight className="h-5 w-5" strokeWidth={2.5} />
+              </button>
+            ) : (
+              <Link
+                href={readerPath(issueId)}
+                onClick={() => rememberReaderSource(issueId, 'shelf')}
+                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-flame-600 px-4 text-sm font-semibold text-white shadow-md transition-colors hover:bg-flame-700 lg:hidden"
+              >
+                Read issue <ArrowRight className="h-4 w-4" />
+              </Link>
+            )}
           </div>
         )}
       </div>

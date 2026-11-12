@@ -182,9 +182,11 @@ export function HomeClient({
   collection,
   siteSettings,
 }: HomeClientProps) {
+  const [heroPreviewOpen, setHeroPreviewOpen] = useState(false);
+
   return (
     <div className="flex min-h-screen flex-col">
-      <Header navigation={navigation} autoHideOnHome />
+      <Header navigation={navigation} autoHideOnHome suppressed={heroPreviewOpen} />
 
       <main className="flex-1">
         <section className="relative overflow-hidden bg-gradient-to-b from-[#fffaf1] via-[#fffdf8] to-white px-4 pb-12 pt-5 sm:px-6 sm:pb-20 sm:pt-9 md:px-0 md:pt-0">
@@ -192,6 +194,7 @@ export function HomeClient({
             magazines={carouselMagazines}
             issues={carouselIssues}
             archiveIssues={pickerIssues}
+            onPreviewChange={setHeroPreviewOpen}
           />
 
           <section className="mx-auto mt-8 w-full max-w-[1440px] border-y border-gold-200/70 px-2 py-6 sm:mt-16 sm:px-6 sm:py-10 lg:px-10" aria-labelledby="archive-intro-title">

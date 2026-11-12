@@ -26,11 +26,13 @@ export function Header({
   contextualControls,
   contextualControlsVisible = false,
   autoHideOnHome = false,
+  suppressed = false,
 }: {
   navigation?: PublicNavigation;
   contextualControls?: React.ReactNode;
   contextualControlsVisible?: boolean;
   autoHideOnHome?: boolean;
+  suppressed?: boolean;
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileMenuOpenRef=useRef(false);
@@ -112,6 +114,10 @@ export function Header({
   }, [contextualControlsVisible]);
 
   useEffect(() => {
+    if (suppressed) setMobileMenuOpen(false);
+  }, [suppressed]);
+
+  useEffect(() => {
     if (pathname !== '/browse' || bookmarkedIds.length === 0) return;
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
     if (connection?.saveData) return;
@@ -139,11 +145,13 @@ export function Header({
     <header
       ref={headerRef}
       data-site-header
-      onFocusCapture={()=>{if(autoHideOnHome)setScrollHeaderVisible(true);}}
+      aria-hidden={suppressed || undefined}
+      inert={suppressed || undefined}
+      onFocusCapture={()=>{if(autoHideOnHome&&!suppressed)setScrollHeaderVisible(true);}}
       className={cn(
         'top-0 z-50 border-b border-flame-100 bg-white shadow-sm',
         autoHideOnHome
-          ? cn('fixed inset-x-0 transform-gpu transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:duration-150',scrollHeaderVisible?'translate-y-0':'pointer-events-none -translate-y-full')
+          ? cn('fixed inset-x-0 transform-gpu transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:duration-150',scrollHeaderVisible&&!suppressed?'translate-y-0':'pointer-events-none -translate-y-full')
           : 'relative sticky',
       )}
     >
