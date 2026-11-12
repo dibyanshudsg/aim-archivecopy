@@ -12,6 +12,7 @@ import { getDb } from './client';
 import { getLiveHeroIssueIds } from '../hero-issues';
 import { AsyncTtlCache } from './cache';
 import { issueSelectSql, rowToIssue, rowToMagazine, type IssueJoinedRow, type MagazineRow } from './mappers';
+import { buildRowFilledPageRanges, type BrowsePageRange } from '../browse-pagination';
 
 const IMPOSSIBLE_ID = '__none__';
 const SHORT_PUBLIC_CACHE_MS = 10_000;
@@ -22,6 +23,7 @@ const magazineCache = new AsyncTtlCache<ApiMagazine[]>(PUBLIC_LOOKUP_CACHE_MS);
 const issueArrayCache = new AsyncTtlCache<ApiIssue[]>(PUBLIC_LOOKUP_CACHE_MS);
 const issueCache = new AsyncTtlCache<ApiIssue | null>(ISSUE_DETAIL_CACHE_MS);
 const facetCache = new AsyncTtlCache<ResultSet[]>(SHORT_PUBLIC_CACHE_MS, 64);
+const rowFillPaginationCache = new AsyncTtlCache<BrowsePageRange[]>(PUBLIC_LOOKUP_CACHE_MS, 32);
 const summaryCache = new AsyncTtlCache<{ listed: number; readable: number; languages: string[] }>(PUBLIC_LOOKUP_CACHE_MS, 2);
 const shelfCache = new AsyncTtlCache<ShelfIssue[]>(PUBLIC_LOOKUP_CACHE_MS, 32);
 const shelfYearCache = new AsyncTtlCache<ShelfYear[]>(PUBLIC_LOOKUP_CACHE_MS, 2);
@@ -32,6 +34,7 @@ export function clearPublicRepositoryCaches(): void {
   issueArrayCache.clear();
   issueCache.clear();
   facetCache.clear();
+  rowFillPaginationCache.clear();
   summaryCache.clear();
   shelfCache.clear();
   shelfYearCache.clear();
@@ -384,12 +387,66 @@ async function listPublicIssuesUncached(input: PublicIssueListInput): Promise<Pu
   const featuredIds = [...liveHeroIssueIds];
   const where = buildIssueWhere(input, magazines, featuredIds, undefined, searchIssueIds);
   const order = buildOrderBy(input);
-  const offset = (input.page - 1) * input.pageSize;
 
   const facetQueries = FACET_DIMENSIONS.map((dimension) =>
     facetCountQuery(buildIssueWhere(input, magazines, featuredIds, dimension, searchIssueIds), dimension),
   );
-  const filterInput = { ...input, page: undefined, pageSize: undefined, sort: undefined, dir: undefined };
+  const filterInput = {
+    ...input,
+    page: undefined,
+    pageSize: undefined,
+    rowFill: undefined,
+    sort: undefined,
+    dir: undefined,
+  };
+  const facetResultsPromise = facetCache.get(
+    `${JSON.stringify(filterInput)}:${embargoWindowCacheKey()}`,
+    () => getDb().batch([
+      {
+        sql: `
+          SELECT COUNT(*) AS count
+          FROM issues i
+          JOIN magazines m ON m.id = i.magazine_id
+          ${where.sql}
+        `,
+        args: where.args,
+      },
+      ...facetQueries,
+    ], 'read'),
+  );
+
+  const rowFillRanges = shouldUseRowFillPagination(input)
+    ? await rowFillPaginationCache.get(
+      `${JSON.stringify({ ...filterInput, pageSize: input.pageSize, rowFill: input.rowFill })}:${embargoWindowCacheKey()}`,
+      async () => {
+        const result = await getDb().execute({
+          sql: `
+            SELECT i.year
+            FROM issues i
+            JOIN magazines m ON m.id = i.magazine_id
+            ${where.sql}
+            ${order}
+          `,
+          args: where.args,
+        });
+        return buildRowFilledPageRanges(
+          result.rows.map((row) => Number(row.year)),
+          input.pageSize,
+          input.rowFill!,
+        );
+      },
+    )
+    : null;
+
+  const requestedRange = rowFillRanges?.[input.page - 1];
+  const rowFillEnd = rowFillRanges?.at(-1);
+  const offset = requestedRange?.offset ?? (
+    rowFillRanges
+      ? (rowFillEnd?.offset ?? 0) + (rowFillEnd?.limit ?? 0)
+      : (input.page - 1) * input.pageSize
+  );
+  const limit = requestedRange?.limit ?? input.pageSize;
+
   const [rowsResult, [countResult, ...facetResults]] = await Promise.all([
     getDb().execute({
       sql: `
@@ -400,22 +457,9 @@ async function listPublicIssuesUncached(input: PublicIssueListInput): Promise<Pu
         ${order}
         LIMIT ? OFFSET ?
       `,
-      args: [...where.args, input.pageSize, offset],
-      }),
-    facetCache.get(`${JSON.stringify(filterInput)}:${embargoWindowCacheKey()}`, () => getDb().batch([
-      {
-      sql: `
-        SELECT COUNT(*) AS count
-        FROM issues i
-        JOIN magazines m ON m.id = i.magazine_id
-        ${where.sql}
-      `,
-      args: where.args,
-      },
-      ...facetQueries,
-    ],
-    'read',
-  )),
+      args: [...where.args, limit, offset],
+    }),
+    facetResultsPromise,
   ]);
   const facets = buildFacets(input, magazines, facetResults);
 
@@ -435,9 +479,23 @@ async function listPublicIssuesUncached(input: PublicIssueListInput): Promise<Pu
     total,
     page: input.page,
     pageSize: input.pageSize,
-    totalPages: Math.max(1, Math.ceil(total / input.pageSize)),
+    offset,
+    totalPages: rowFillRanges?.length ?? Math.max(1, Math.ceil(total / input.pageSize)),
     facets,
   };
+}
+
+function shouldUseRowFillPagination(input: PublicIssueListInput): input is PublicIssueListInput & { rowFill: number } {
+  return input.rowFill !== null &&
+    input.availability === 'read' &&
+    input.sort === null &&
+    input.dir === 'desc' &&
+    input.q === '' &&
+    input.years.length === 0 &&
+    input.months.length === 0 &&
+    input.magazines.length === 0 &&
+    input.languages.length === 0 &&
+    input.subjects.length === 0;
 }
 
 type FacetDimension = 'years' | 'months' | 'magazines' | 'languages' | 'subjects';

@@ -80,6 +80,7 @@ export interface PaginatedIssues {
   total: number;
   page: number;
   pageSize: number;
+  offset: number;
   totalPages: number;
   facets?: {
     years: { value: number; label: string; count: number }[];
@@ -127,6 +128,7 @@ export async function fetchIssues(params?: {
   dir?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
+  rowFill?: number;
   availability?: 'read' | 'subscriber' | 'all';
   signal?: AbortSignal;
 }): Promise<PaginatedIssues> {
@@ -149,6 +151,7 @@ export async function fetchIssues(params?: {
   if (params?.dir === 'asc') searchParams.set('dir', 'asc');
   if (params?.page) searchParams.set('page', String(params.page));
   if (params?.pageSize) searchParams.set('page_size', String(params.pageSize));
+  if (params?.rowFill) searchParams.set('row_fill', String(params.rowFill));
 
   const res = await fetch(`${BASE_URL}/api/issues?${searchParams}`, { signal: params?.signal });
   if (!res.ok) throw new Error('Failed to fetch issues');

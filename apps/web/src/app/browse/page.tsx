@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import { unstable_cache } from 'next/cache';
 import { BrowseClient } from './browse-client';
 import { BrowseLoading } from './loading';
 import type { ApiIssue, ApiMagazine } from '@/lib/api';
@@ -7,32 +8,39 @@ import {
   listPublicIssues,
   parsePublicIssueListInput,
   type BrowseFacets,
+  type PublicIssueListInput,
 } from '@/lib/public-issues';
 import { siteUrl } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 
-async function fetchInitialBrowseData(
-  searchParams: Record<string, string | string[] | undefined>,
+const fetchInitialBrowseData = unstable_cache(async (
+  input: PublicIssueListInput,
 ): Promise<{
   issues: ApiIssue[];
   magazines: ApiMagazine[];
   total: number;
+  offset: number;
   totalPages: number;
   facets: BrowseFacets;
-}> {
-  const result = await listPublicIssues(
-    parsePublicIssueListInput({ ...searchParams, page_size: searchParams.page_size ?? '24' }),
-  );
+}> => {
+  const result = await listPublicIssues(input);
 
   return {
     issues: result.data,
     magazines: result.magazines,
     total: result.total,
+    offset: result.offset,
     totalPages: result.totalPages,
     facets: result.facets,
   };
-}
+}, ['browse-initial-data-v2'], { revalidate: 31_536_000, tags: ['public-archive'] });
+
+const fetchBrowseSiteSettings = unstable_cache(
+  readSiteSettingsFromDb,
+  ['browse-site-settings-v1'],
+  { revalidate: 31_536_000, tags: ['public-archive'] },
+);
 
 export default async function BrowsePage({
   searchParams,
@@ -40,10 +48,15 @@ export default async function BrowsePage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const [{ issues, magazines, total, totalPages, facets }, navigation, siteSettings] = await Promise.all([
-    fetchInitialBrowseData(params),
+  const input = parsePublicIssueListInput({
+    ...params,
+    page_size: params.page_size ?? '24',
+    row_fill: params.row_fill ?? '6',
+  });
+  const [{ issues, magazines, total, offset, totalPages, facets }, navigation, siteSettings] = await Promise.all([
+    fetchInitialBrowseData(input),
     getPublicNavigationFromDb(),
-    readSiteSettingsFromDb(),
+    fetchBrowseSiteSettings(),
   ]);
 
   const collectionJsonLd = {
@@ -66,6 +79,7 @@ export default async function BrowsePage({
         initialIssues={issues}
         initialMagazines={magazines}
         initialTotal={total}
+        initialOffset={offset}
         initialTotalPages={totalPages}
         initialFacets={facets}
         navigation={navigation}

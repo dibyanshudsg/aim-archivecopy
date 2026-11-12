@@ -30,6 +30,7 @@ export interface PublicIssueListInput {
   dir: 'asc' | 'desc';
   page: number;
   pageSize: number;
+  rowFill: number | null;
 }
 
 export interface PublicIssueListResult {
@@ -38,6 +39,7 @@ export interface PublicIssueListResult {
   total: number;
   page: number;
   pageSize: number;
+  offset: number;
   totalPages: number;
   facets: BrowseFacets;
 }
@@ -55,6 +57,7 @@ export function parsePublicIssueListInput(
   };
 
   const pageSize = clamp(toInt(get('page_size')) ?? DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
+  const requestedRowFill = toInt(get('row_fill'));
   return {
     availability: parseAvailability(get('availability')),
     years: parseIntList(get('year'), 1950, 2100),
@@ -67,6 +70,9 @@ export function parsePublicIssueListInput(
     dir: get('dir') === 'asc' ? 'asc' : 'desc',
     page: Math.max(1, toInt(get('page')) ?? 1),
     pageSize,
+    rowFill: requestedRowFill && requestedRowFill >= 2 && requestedRowFill <= 12
+      ? requestedRowFill
+      : null,
   };
 }
 

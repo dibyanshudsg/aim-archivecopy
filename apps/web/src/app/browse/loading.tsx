@@ -63,8 +63,8 @@ export function BrowseLoading({ navigation }: { navigation?: PublicNavigation })
           <span className="rounded-full border border-flame-100 px-4 py-1 text-xs font-semibold text-flame-700">Archive editions</span>
           <span className="h-px flex-1 bg-gold-200" />
         </div>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5" aria-hidden="true">
-          {Array.from({ length: 10 }, (_, index) => (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6" aria-hidden="true">
+          {Array.from({ length: 12 }, (_, index) => (
             <div key={index} className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
               <div className="archive-skeleton-wave relative aspect-[3/4] bg-flame-50" />
               <div className="space-y-2 p-3.5">

@@ -41,11 +41,18 @@ import {
   type BrowseReturnTarget,
 } from '@/lib/reader-url';
 import { warmIssueDetailRoute } from '@/lib/issue-detail-url';
+import {
+  readPersistentBrowseEntry,
+  writePersistentBrowseEntry,
+} from '@/lib/browse-persistent-cache';
 
 const PANEL_STORAGE_KEY = 'browse:panel:open';
 const PAGE_SIZE = 24;
-const BROWSE_GRID_COLUMNS = 'grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5';
-const BROWSE_GRID_FULL_SPAN = 'col-span-2 sm:col-span-3 md:col-span-3 lg:col-span-4 xl:col-span-5';
+// Persist Browse responses across reloads/tabs; public-archive invalidation and
+// a quiet background refresh keep the next visit current after Admin edits.
+const CLIENT_BROWSE_CACHE_MS = 365 * 24 * 60 * 60_000;
+const BROWSE_GRID_COLUMNS = 'grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6';
+const BROWSE_GRID_FULL_SPAN = 'col-span-2 sm:col-span-3 md:col-span-3 lg:col-span-4 xl:col-span-6';
 
 type NormalizedIssue = ReturnType<typeof normalizeIssue>;
 type BrowseGridItem =
@@ -55,6 +62,7 @@ type BrowseGridItem =
 interface BrowseCacheEntry {
   issues: ApiIssue[];
   total: number;
+  offset: number;
   totalPages: number;
   facets: BrowseFacets;
 }
@@ -107,6 +115,7 @@ interface BrowseClientProps {
   initialIssues: ApiIssue[];
   initialMagazines: ApiMagazine[];
   initialTotal: number;
+  initialOffset: number;
   initialTotalPages: number;
   initialFacets: BrowseFacets;
   navigation: PublicNavigation;
@@ -121,6 +130,7 @@ function BrowseContent({
   initialIssues,
   initialMagazines,
   initialTotal,
+  initialOffset,
   initialTotalPages,
   initialFacets,
   navigation,
@@ -145,16 +155,23 @@ function BrowseContent({
   const mobileToolbarRef = useRef<HTMLDivElement>(null);
   const searchBarOpen = useSearchDropdown((state) => state.isOpen);
   const currentCacheKey = useMemo(() => browseCacheKey(filters), [filters]);
-  const responseCacheRef = useRef(new TtlCache<BrowseCacheEntry>(60_000, 32));
+  const responseCacheRef = useRef(new TtlCache<BrowseCacheEntry>(CLIENT_BROWSE_CACHE_MS, 32));
   const inFlightRequestRef = useRef(new Map<string, { promise: Promise<BrowseCacheEntry>; controller: AbortController }>());
   const cacheSeededRef = useRef(false);
+  const initialPersistentSeedRef = useRef<{ key: string; entry: BrowseCacheEntry } | null>(null);
   if (!cacheSeededRef.current) {
-    responseCacheRef.current.set(currentCacheKey, {
+    const safeInitialOffset = Number.isFinite(initialOffset)
+      ? initialOffset
+      : Math.max(0, (filters.page - 1) * PAGE_SIZE);
+    const initialEntry = {
       issues: initialIssues,
       total: initialTotal,
+      offset: safeInitialOffset,
       totalPages: initialTotalPages,
       facets: initialFacets,
-    });
+    };
+    responseCacheRef.current.set(currentCacheKey, initialEntry);
+    initialPersistentSeedRef.current = { key: currentCacheKey, entry: initialEntry };
     cacheSeededRef.current = true;
   }
 
@@ -162,6 +179,9 @@ function BrowseContent({
   const [magazines] = useState<ApiMagazine[]>(initialMagazines);
   const [issues, setIssues] = useState<ApiIssue[]>(initialIssues);
   const [total, setTotal] = useState(initialTotal);
+  const [pageOffset, setPageOffset] = useState(() => Number.isFinite(initialOffset)
+    ? initialOffset
+    : Math.max(0, (filters.page - 1) * PAGE_SIZE));
   const [totalPages, setTotalPages] = useState(initialTotalPages);
   const [facets, setFacets] = useState(initialFacets);
   const [loading, setLoading] = useState(false);
@@ -175,6 +195,7 @@ function BrowseContent({
   const applyBrowseEntry = useCallback((entry: BrowseCacheEntry) => {
     setIssues(entry.issues);
     setTotal(entry.total);
+    setPageOffset(entry.offset);
     setTotalPages(entry.totalPages);
     setFacets(entry.facets);
   }, []);
@@ -188,30 +209,49 @@ function BrowseContent({
       if (inFlight && !inFlight.controller.signal.aborted) return inFlight.promise;
       const controller = new AbortController();
 
-      const request = fetchIssues({
-        years: requestFilters.years,
-        months: requestFilters.months,
-        magazines: requestFilters.magazines,
-        languages: requestFilters.languages,
-        subjects: requestFilters.subjects,
-        query: requestFilters.query,
-        sort: requestFilters.sort,
-        dir: requestFilters.dir,
-        page: requestFilters.page,
-        pageSize: PAGE_SIZE,
-        availability: requestFilters.availability,
-        signal: controller.signal,
-      })
-        .then((result) => {
+      const fetchAndCache = async (signal?: AbortSignal) => {
+        const result = await fetchIssues({
+          years: requestFilters.years,
+          months: requestFilters.months,
+          magazines: requestFilters.magazines,
+          languages: requestFilters.languages,
+          subjects: requestFilters.subjects,
+          query: requestFilters.query,
+          sort: requestFilters.sort,
+          dir: requestFilters.dir,
+          page: requestFilters.page,
+          pageSize: PAGE_SIZE,
+          rowFill: 6,
+          availability: requestFilters.availability,
+          signal,
+        });
           const entry = {
             issues: result.data,
             total: result.total,
+            offset: Number.isFinite(result.offset)
+              ? result.offset
+              : Math.max(0, (requestFilters.page - 1) * PAGE_SIZE),
             totalPages: result.totalPages,
             facets: result.facets ?? initialFacets,
           };
-          if (!controller.signal.aborted) responseCacheRef.current.set(key, entry);
+          if (!signal?.aborted) {
+            responseCacheRef.current.set(key, entry);
+            void writePersistentBrowseEntry(key, entry);
+          }
           return entry;
-        })
+      };
+
+      const request = (async () => {
+        const persisted = await readPersistentBrowseEntry<BrowseCacheEntry>(key, CLIENT_BROWSE_CACHE_MS);
+        if (persisted && Number.isFinite(persisted.offset) && !controller.signal.aborted) {
+          responseCacheRef.current.set(key, persisted);
+          // Serve persistent data immediately, then refresh it without blocking
+          // this navigation so admin changes reach the next visit.
+          void fetchAndCache().catch(() => {});
+          return persisted;
+        }
+        return fetchAndCache(controller.signal);
+      })()
         .finally(() => {
           if (inFlightRequestRef.current.get(key)?.promise === request) {
             inFlightRequestRef.current.delete(key);
@@ -223,6 +263,11 @@ function BrowseContent({
     },
     [initialFacets],
   );
+
+  useEffect(() => {
+    const seed = initialPersistentSeedRef.current;
+    if (seed) void writePersistentBrowseEntry(seed.key, seed.entry);
+  }, []);
 
   useEffect(() => {
     const requests = inFlightRequestRef.current;
@@ -397,7 +442,37 @@ function BrowseContent({
     [filters, loadBrowseEntry],
   );
 
-  // Alternate lists are warmed on hover/focus intent, not every filter change.
+  useEffect(() => {
+    if (loading) return;
+
+    const connection = (navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    }).connection;
+    if (connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType ?? '')) return;
+
+    const warmLikelyNextViews = () => {
+      if (shouldPrefetchAvailability(filters)) {
+        for (const option of availabilityOptions) {
+          prefetchAvailability(option.id);
+        }
+      }
+
+      if (filters.page < totalPages) {
+        const nextFilters = { ...filters, page: filters.page + 1 };
+        loadBrowseEntry(nextFilters, browseCacheKey(nextFilters)).catch(() => {
+          /* best-effort warm cache */
+        });
+      }
+    };
+
+    if (typeof window.requestIdleCallback === 'function') {
+      const idleId = window.requestIdleCallback(warmLikelyNextViews, { timeout: 1_200 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+
+    const timeoutId = window.setTimeout(warmLikelyNextViews, 300);
+    return () => window.clearTimeout(timeoutId);
+  }, [filters, loadBrowseEntry, loading, prefetchAvailability, totalPages]);
 
   const handleAvailabilityChange = useCallback(
     (availability: AvailabilityFilter) => {
@@ -411,7 +486,7 @@ function BrowseContent({
   );
 
   const currentPage = Math.min(filters.page, totalPages);
-  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pageStart = pageOffset;
   const pageEnd = Math.min(pageStart + issues.length, total);
   const normalized = useMemo(() => issues.map(normalizeIssue), [issues]);
   const showYearSeparators = filters.sort === null;
