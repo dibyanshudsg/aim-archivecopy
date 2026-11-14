@@ -53,7 +53,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     // Public covers may be reused briefly in this browser. CDN and admin
     // delivery remain uncached; replacements get a new URL on the homepage.
     const headers = new Headers(response.headers);
-    headers.set('Cache-Control', 'private, max-age=300');
+    headers.set('Cache-Control', 'public, max-age=31536000, immutable');
     return new Response(response.body, { status: response.status, headers });
   }
   try {

@@ -227,7 +227,9 @@ export function normalizeIssue(issue: ApiIssue) {
     pdfUrl: issue.pdf_url,
     epubUrl: issue.epub_url,
     mobiUrl: issue.mobi_url,
-    coverImageUrl: issue.cover_image_url,
+    coverImageUrl: issue.cover_image_url && issue.updated_at && !issue.cover_image_url.includes('?v=')
+      ? `${issue.cover_image_url}?v=${encodeURIComponent(issue.updated_at)}`
+      : issue.cover_image_url,
     pageCount: issue.page_count,
     fileSizeBytes: issue.file_size_bytes,
     readCount: issue.read_count,

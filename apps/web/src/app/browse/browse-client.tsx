@@ -76,8 +76,8 @@ const availabilityOptions = [
   },
   {
     id: 'subscriber',
-    label: 'Awaiting public release',
-    helper: 'Print circulation',
+    label: 'Subscriber editions',
+    helper: 'Recent 5 years',
     Icon: LockKeyhole,
   },
   {
@@ -100,13 +100,13 @@ const availabilityCopy: Record<AvailabilityFilter, { heading: string; subtitle: 
     countLabel: 'readable',
   },
   subscriber: {
-    heading: 'Awaiting Public Release',
-    subtitle: 'Current circulation editions are visible for discovery. Featured home issues are readable now; other editions open after five years.',
-    countLabel: 'restricted',
+    heading: 'Recent Subscriber Editions',
+    subtitle: 'Recent editions (within the last 5 years) are reserved for active subscribers and Society members before entering the public digital archive. Metadata is browseable now.',
+    countLabel: 'subscriber',
   },
   all: {
     heading: 'Browse Archive',
-    subtitle: 'Browse All India Magazine and Agnishikha editions, including those awaiting public release.',
+    subtitle: 'Browse All India Magazine and Agnishikha editions, including subscriber editions.',
     countLabel: 'archive',
   },
 };
@@ -1398,7 +1398,7 @@ function EmptyState({
       {hasActiveFilters && (
         <button
           onClick={onClearAll}
-          className="mt-4 bg-gradient-to-r from-gold-600 to-flame-500 bg-clip-text text-sm font-medium text-transparent"
+          className="mt-4 text-sm font-semibold text-flame-700 hover:text-flame-800 hover:underline"
         >
           Clear all filters
         </button>

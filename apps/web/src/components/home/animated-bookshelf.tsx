@@ -22,6 +22,7 @@ import { AnimatePresence, MotionConfig, motion, useReducedMotion } from 'framer-
 import type { ShelfIssue, ShelfYear } from '@/lib/home-shelf';
 import { TtlCache } from '@/lib/ttl-cache';
 import { readerPath, rememberReaderSource } from '@/lib/reader-url';
+import { issueDetailPath } from '@/lib/issue-detail-url';
 import { formatMonthYear } from '@/lib/utils';
 import { configurePdfWorker } from '@/lib/pdf-worker-client';
 
@@ -100,7 +101,11 @@ function IssueBook({
   const [spreadStart, setSpreadStart] = useState(1);
   const [numPages, setNumPages] = useState(issue.page_count ?? 0);
   const [turning, setTurning] = useState<TurningSheet | null>(null);
-  const [pageImages, setPageImages] = useState<Record<number, string>>({});
+  const [pageImages, setPageImages] = useState<Record<number, string>>(() => {
+    const initial: Record<number, string> = {};
+    if (issue.cover_image_url) initial[1] = issue.cover_image_url;
+    return initial;
+  });
   const [pdfReady, setPdfReady] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState(false);
@@ -123,11 +128,16 @@ function IssueBook({
   }
 
   function navigateToTarget() {
+    const isPhoneViewport = typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches;
+    if (isPhoneViewport) {
+      router.push(issueDetailPath(issue.id));
+      return;
+    }
     if (canPreview) {
       rememberReaderSource(issue.id, 'shelf');
       router.push(readerPath(issue.id));
     } else {
-      router.push(`/issue/${issue.id}`);
+      router.push(issueDetailPath(issue.id));
     }
   }
 
@@ -151,7 +161,11 @@ function IssueBook({
     import('react-pdf').then(({ pdfjs }) => {
       if (disposed) return;
       configurePdfWorker(pdfjs);
-      task = pdfjs.getDocument(issue.pdf_url!);
+      task = pdfjs.getDocument({
+        url: issue.pdf_url!,
+        rangeChunkSize: 65536,
+        disableAutoFetch: true,
+      });
       return task.promise;
     }).then((pdf) => {
         if (!pdf || disposed) return;
@@ -173,17 +187,24 @@ function IssueBook({
       pdfDocRef.current = null;
       pdfLoadStartedRef.current = false;
       pageRenderPromisesRef.current = {};
-      pageImagesRef.current = {};
-      setPageImages({});
+      pageImagesRef.current = issue.cover_image_url ? { 1: issue.cover_image_url } : {};
+      setPageImages(issue.cover_image_url ? { 1: issue.cover_image_url } : {});
       setPdfReady(false);
       void task?.destroy().catch(() => {});
     };
-  }, [expanded, issue.pdf_url]);
+  }, [expanded, issue.cover_image_url, issue.pdf_url]);
 
   const ensurePageImage = useCallback(
     async (pageNumber: number): Promise<boolean> => {
       const totalPages = numPages || issue.page_count || 0;
       if (pageNumber < 1 || (totalPages > 0 && pageNumber > totalPages)) return true;
+      if (pageNumber === 1 && issue.cover_image_url) {
+        if (!pageImagesRef.current[1]) {
+          pageImagesRef.current[1] = issue.cover_image_url;
+          setPageImages((prev) => ({ ...prev, 1: issue.cover_image_url! }));
+        }
+        return true;
+      }
       if (pageImagesRef.current[pageNumber]) return true;
       if (pageRenderPromisesRef.current[pageNumber]) {
         return pageRenderPromisesRef.current[pageNumber];
@@ -197,7 +218,7 @@ function IssueBook({
         if (pdfDocRef.current !== pdfDoc) return false;
         const baseViewport = page.getViewport({ scale: 1 });
         const longSide = Math.max(baseViewport.width, baseViewport.height);
-        const scale = Math.min(1.8, Math.max(1, 1000 / longSide));
+        const scale = Math.min(1.0, Math.max(0.6, 440 / longSide));
         const viewport = page.getViewport({ scale });
         const canvas = document.createElement('canvas');
         canvas.width = Math.ceil(viewport.width);
@@ -210,12 +231,14 @@ function IssueBook({
         try { await render.promise; }
         finally { renderTasksRef.current.delete(render); }
         if (pdfDocRef.current !== pdfDoc) { canvas.width = canvas.height = 0; return false; }
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.76);
         pageImagesRef.current = { ...pageImagesRef.current, [pageNumber]: dataUrl };
         // Retain at most three nearby spreads, even during long previews.
         const keys = Object.keys(pageImagesRef.current).map(Number)
           .sort((a, b) => Math.abs(a - pageNumber) - Math.abs(b - pageNumber));
-        for (const key of keys.slice(6)) delete pageImagesRef.current[key];
+        for (const key of keys.slice(6)) {
+          if (key !== 1) delete pageImagesRef.current[key];
+        }
         setPageImages({ ...pageImagesRef.current });
         canvas.width = canvas.height = 0;
         page.cleanup();
@@ -504,6 +527,7 @@ function InFlowBookPreview({
               numPages={numPages}
               loading={pdfLoading}
               error={pdfError}
+              coverUrl={issue.cover_image_url}
             />
           </BookPage>
           <BookPage side="right">
@@ -513,6 +537,7 @@ function InFlowBookPreview({
               numPages={numPages}
               loading={pdfLoading}
               error={pdfError}
+              coverUrl={issue.cover_image_url}
             />
           </BookPage>
 
@@ -781,31 +806,33 @@ function PdfPreviewPage({
   numPages,
   loading,
   error,
+  coverUrl,
 }: {
   pageNumber: number;
   pageImage?: string;
   numPages: number;
   loading: boolean;
   error: boolean;
+  coverUrl?: string | null;
 }) {
   if (numPages > 0 && pageNumber > numPages) {
     return <div className="h-full w-full rounded-sm bg-gradient-to-br from-white to-flame-50" />;
   }
 
+  const effectiveImage = pageImage ?? (pageNumber === 1 ? coverUrl ?? undefined : undefined);
+
   return (
     <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-sm bg-white">
-      {pageImage ? (
+      {effectiveImage ? (
         // eslint-disable-next-line @next/next/no-img-element -- PDF pages are locally rendered data URLs.
         <img
-          src={pageImage}
+          src={effectiveImage}
           alt={`Page ${pageNumber}`}
           className="max-h-full max-w-full object-contain"
           draggable={false}
         />
       ) : error ? (
         <BookLoading label="Preview unavailable" />
-      ) : loading ? (
-        <PageSkeleton />
       ) : (
         <PageSkeleton />
       )}
@@ -815,7 +842,12 @@ function PdfPreviewPage({
 
 function PageSkeleton() {
   return (
-    <div className="h-full min-h-[160px] w-full animate-pulse rounded-sm bg-gradient-to-br from-gold-50 to-flame-50/70" />
+    <div className="relative flex h-full min-h-[160px] w-full items-center justify-center rounded-sm bg-gradient-to-br from-gold-50/50 to-flame-50/30">
+      <div className="flex flex-col items-center gap-1.5 sm:gap-2">
+        <span className="h-5 w-5 animate-spin rounded-full border-2 border-flame-600 border-t-transparent" />
+        <span className="text-[10px] font-semibold text-flame-700">Loading…</span>
+      </div>
+    </div>
   );
 }
 
@@ -830,7 +862,7 @@ function BookLoading({ label }: { label: string }) {
 function CoverFallback({ issue, monthYear }: { issue: ShelfIssue; monthYear: string }) {
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-gold-50 to-flame-50 px-3 text-center">
-      <span className="bg-gradient-to-r from-gold-600 to-flame-500 bg-clip-text text-xs font-semibold text-transparent">{fallbackTitle(issue)}</span>
+      <span className="text-xs font-semibold text-flame-800">{fallbackTitle(issue)}</span>
       <span className="font-heading mt-2 text-lg font-bold text-gray-900">{monthYear}</span>
     </div>
   );
@@ -1272,7 +1304,7 @@ export function AnimatedBookshelf({ issues: suppliedIssues, years, archiveGrowth
         <div className="rounded-xl border border-flame-100/80 bg-gradient-to-b from-white to-flame-50/40 p-5 shadow-sm sm:p-7">
           <div className="mb-6 grid grid-cols-1 items-center gap-4 border-b border-flame-100 pb-4 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
             <div className="min-w-0 text-left">
-              <p className="bg-gradient-to-r from-gold-600 to-flame-500 bg-clip-text text-xs font-semibold uppercase text-transparent">{activeCopy.eyebrow}</p>
+              <p className="text-xs font-semibold tracking-wider uppercase text-flame-700">{activeCopy.eyebrow}</p>
               <h2 className="font-heading text-2xl font-bold text-gray-900">{activeCopy.heading}</h2>
               <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-gray-500">
                 <LibraryBig className="h-3.5 w-3.5 text-flame-500" />
@@ -1346,6 +1378,7 @@ export function AnimatedBookshelf({ issues: suppliedIssues, years, archiveGrowth
             </div>
             <Link
               href={browseHref}
+              prefetch={true}
               className="inline-flex min-h-11 items-center justify-center justify-self-center rounded-lg border border-flame-200 bg-white px-4 py-2 text-sm font-semibold text-flame-700 transition-colors hover:border-flame-300 hover:bg-flame-50 lg:justify-self-end"
             >
               Browse all
@@ -1403,6 +1436,7 @@ export function AnimatedBookshelf({ issues: suppliedIssues, years, archiveGrowth
               ) : (
                 <Link
                   href="/browse"
+                  prefetch={true}
                   className="mt-4 inline-block rounded-lg border border-flame-200 bg-white px-5 py-2.5 text-sm font-semibold text-flame-700 transition-colors hover:border-flame-300 hover:bg-flame-50"
                 >
                   Browse the archive

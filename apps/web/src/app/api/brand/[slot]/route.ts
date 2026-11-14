@@ -15,7 +15,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ slot
       const fallback = slot === 'logo' && request.method !== 'HEAD'
         ? '/_next/image?url=%2Flogo.png&w=64&q=75'
         : slot === 'favicon' ? '/icon.png' : '/logo.png';
-      return NextResponse.redirect(new URL(fallback, request.url), { headers: { 'Cache-Control': 'no-store' } });
+      return NextResponse.redirect(new URL(fallback, request.url), {
+        headers: { 'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800' },
+      });
     }
     const object = await getR2Client().send(new GetObjectCommand({ Bucket: r2Bucket(), Key: key }));
     if (!object.Body || object.ContentType !== 'image/png' || !object.ContentLength || object.ContentLength > 2 * 1024 * 1024) return new Response(null, { status: 404 });

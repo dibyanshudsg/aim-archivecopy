@@ -84,11 +84,19 @@ export function createPdfDelivery(overrides: Partial<PdfDeliveryDependencies> = 
         process.env.TURSO_DATABASE_URL?.startsWith('file:');
       if (mode !== 'admin' && !localPublicPreview) {
         const now = deps.now();
+        const cacheControl = mode === 'public'
+          ? 'public, max-age=86400, stale-while-revalidate=604800'
+          : PDF_CACHE_CONTROL;
         const command = head
           ? new HeadObjectCommand({ Bucket, Key: key })
-          : new GetObjectCommand({ Bucket, Key: key, ResponseCacheControl: PDF_CACHE_CONTROL, ResponseContentType: 'application/pdf', ResponseContentDisposition: disposition });
+          : new GetObjectCommand({ Bucket, Key: key, ResponseCacheControl: cacheControl, ResponseContentType: 'application/pdf', ResponseContentDisposition: disposition });
         const url = await deps.sign(client, command, { expiresIn: PDF_GRANT_SECONDS, signingDate: now });
-        if (mode === 'public' || mode === 'download') return new Response(null, { status: 307, headers: { ...PDF_HEADERS, Location: url } });
+        if (mode === 'public' || mode === 'download') {
+          const headers = mode === 'public'
+            ? { ...PDF_HEADERS, 'Cache-Control': 'public, max-age=240, stale-while-revalidate=600', Location: url }
+            : { ...PDF_HEADERS, Location: url };
+          return new Response(null, { status: 307, headers });
+        }
         return new Response(head ? null : JSON.stringify({ url, expires_at: new Date(now.getTime() + PDF_GRANT_SECONDS * 1000).toISOString() }),
           { headers: { ...PDF_HEADERS, 'Content-Type': 'application/json' } });
       }

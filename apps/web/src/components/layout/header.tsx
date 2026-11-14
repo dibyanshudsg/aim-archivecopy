@@ -171,6 +171,8 @@ export function Header({
         >
           <Link
             href="/"
+            prefetch={true}
+            onMouseEnter={() => router.prefetch('/')}
             className={cn(
               'flex items-center',
               contextualControlsVisible ? 'gap-1 min-[600px]:gap-3' : 'gap-3',
@@ -484,6 +486,7 @@ function NavigationAnchor({
   return (
     <Link
       href={item.href}
+      prefetch={true}
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       onFocus={onFocus}

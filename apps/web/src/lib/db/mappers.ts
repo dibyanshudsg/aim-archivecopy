@@ -44,7 +44,7 @@ export function rowToMagazine(row: MagazineRow): ApiMagazine {
     name: String(row.name),
     language: String(row.language),
     description: row.description ?? '',
-    cover_image_url: displayableAssetUrl(row.cover_image_url) ? magazineCoverRoute(String(row.id)) : null,
+    cover_image_url: displayableAssetUrl(row.cover_image_url) ? magazineCoverRoute(String(row.id), row.updated_at ? String(row.updated_at) : undefined) : null,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
   };
@@ -63,7 +63,7 @@ export function rowToIssue(row: IssueJoinedRow): ApiIssue {
     pdf_url: row.pdf_url ? publicPdfRoute(String(row.id)) : null,
     epub_url: row.epub_url ?? null,
     mobi_url: row.mobi_url ?? null,
-    cover_image_url: displayableAssetUrl(row.cover_image_url) ? publicCoverRoute(String(row.id)) : null,
+    cover_image_url: displayableAssetUrl(row.cover_image_url) ? publicCoverRoute(String(row.id), row.updated_at ? String(row.updated_at) : undefined) : null,
     page_count: row.page_count == null ? null : Number(row.page_count),
     file_size_bytes: Number(row.file_size_bytes ?? 0),
     read_count: Number(row.read_count ?? 0),
@@ -80,7 +80,7 @@ export function rowToIssue(row: IssueJoinedRow): ApiIssue {
       name: String(row.magazine_name),
       language: String(row.magazine_language),
       description: row.magazine_description ?? '',
-      cover_image_url: displayableAssetUrl(row.magazine_cover_image_url) ? magazineCoverRoute(String(row.magazine_id)) : null,
+      cover_image_url: displayableAssetUrl(row.magazine_cover_image_url) ? magazineCoverRoute(String(row.magazine_id), row.updated_at ? String(row.updated_at) : undefined) : null,
     },
   };
 }

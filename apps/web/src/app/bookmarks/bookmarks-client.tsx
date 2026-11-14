@@ -30,9 +30,14 @@ interface BookmarksClientProps {
 export function BookmarksClient({ navigation }: BookmarksClientProps) {
   const { bookmarkedIds, clear, toggle } = useBookmarks();
   const { filters, toggleArray, setQuery, clearAll, hasActiveFilters } = useBrowseFilters();
-  const [bookmarksHydrated, setBookmarksHydrated] = useState(false);
+  const [bookmarksHydrated, setBookmarksHydrated] = useState(() =>
+    typeof window !== 'undefined' ? useBookmarks.persist.hasHydrated() : false
+  );
   const [allIssues, setAllIssues] = useState<ApiIssue[]>([]);
-  const [issuesLoading, setIssuesLoading] = useState(true);
+  const [issuesLoading, setIssuesLoading] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return useBookmarks.getState().bookmarkedIds.length > 0;
+  });
   const [issuesError, setIssuesError] = useState(false);
   const [retryVersion, setRetryVersion] = useState(0);
   const [checking, setChecking] = useState(false);
@@ -276,7 +281,7 @@ export function BookmarksClient({ navigation }: BookmarksClientProps) {
                 </button>
                 <button
                   onClick={clear}
-                  className="rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 sm:px-4"
+                  className="rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 sm:px-4"
                 >
                   Clear all
                 </button>
@@ -344,7 +349,7 @@ export function BookmarksClient({ navigation }: BookmarksClientProps) {
                   {hasActiveFilters && (
                     <button
                       onClick={clearAll}
-                      className="mt-4 bg-gradient-to-r from-gold-600 to-flame-500 bg-clip-text text-sm font-medium text-transparent"
+                      className="mt-4 text-sm font-semibold text-flame-700 hover:text-flame-800 hover:underline"
                     >
                       Clear all filters
                     </button>

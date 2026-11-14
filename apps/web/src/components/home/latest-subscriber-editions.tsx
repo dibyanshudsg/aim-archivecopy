@@ -2,7 +2,7 @@
 
 import { ViewportCoverImage } from '@/components/magazine/viewport-cover-image';
 import Link from 'next/link';
-import { CalendarClock, Info, LockKeyhole, Sparkles } from 'lucide-react';
+import { CalendarClock, ExternalLink, Info, LockKeyhole, Sparkles } from 'lucide-react';
 import type { ApiIssue } from '@/lib/api';
 import { formatMonthYear } from '@/lib/utils';
 
@@ -18,6 +18,7 @@ function SubscriberEditionCard({ issue }: { issue: ApiIssue }) {
   return (
     <Link
       href={`/issue/${issue.id}`}
+      prefetch={true}
       className="group grid min-h-[188px] min-w-0 grid-cols-[126px_minmax(0,1fr)] overflow-hidden rounded-xl border border-flame-100 bg-white/90 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-flame-200 hover:bg-white hover:shadow-md active:border-flame-200 active:bg-flame-50/30 sm:grid-cols-[136px_minmax(0,1fr)]"
     >
       <div className="relative h-full min-h-[188px] overflow-hidden bg-gradient-to-br from-gold-50 to-flame-50">
@@ -91,21 +92,32 @@ export function LatestSubscriberEditions({ issues }: LatestSubscriberEditionsPro
                 <Sparkles className="h-4 w-4" />
               </span>
               <div>
-                <p className="bg-gradient-to-r from-gold-600 to-flame-500 bg-clip-text text-xs font-semibold uppercase text-transparent">
-                  Current circulation
+                <p className="text-xs font-semibold tracking-wider uppercase text-flame-700">
+                  Subscriber &amp; Member Editions
                 </p>
                 <h2 className="font-heading text-xl font-bold text-gray-900 sm:text-2xl">
-                  Awaiting public release
+                  Recent Subscriber Editions
                 </h2>
               </div>
             </div>
           </div>
-          <div className="inline-flex w-fit shrink-0 items-center gap-2 rounded-full border border-gold-200 bg-gold-50 px-3 py-1.5 text-xs font-semibold text-gold-800 sm:justify-self-end">
-            <LockKeyhole className="h-3.5 w-3.5" />
-            Metadata visible now
+          <div className="flex flex-wrap items-center gap-2 sm:justify-self-end">
+            <div className="inline-flex w-fit shrink-0 items-center gap-2 rounded-full border border-gold-200 bg-gold-50 px-3 py-1.5 text-xs font-semibold text-gold-800">
+              <LockKeyhole className="h-3.5 w-3.5" />
+              5-Year Subscriber Window
+            </div>
+            <a
+              href="https://aurosociety.org/site/login/memberships"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-full border border-flame-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-flame-800 shadow-2xs transition-colors hover:border-flame-400 hover:bg-flame-50"
+            >
+              <span>Subscribe / Join Society</span>
+              <ExternalLink className="h-3 w-3 text-flame-600" />
+            </a>
           </div>
           <p className="w-full text-sm leading-relaxed text-gray-600 sm:col-span-2">
-            Recent editions remain in print circulation. Covers, themes, and topics are listed here; public reading opens after five years unless an issue is featured on the home page.
+            Recent editions (within the last 5 years) are reserved for active subscribers and Sri Aurobindo Society members to support ongoing publication. Each edition enters the free public digital archive after 5 years.
           </p>
         </div>
 

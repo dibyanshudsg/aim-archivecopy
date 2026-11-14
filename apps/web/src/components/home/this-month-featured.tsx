@@ -15,8 +15,10 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
+  HardDrive,
   Heart,
   RotateCcw,
+  X,
 } from 'lucide-react';
 import type { ApiIssue, ApiMagazine, HeroPresentationTheme } from '@/lib/api';
 import { HeroIssuePicker } from './hero-issue-picker';
@@ -116,13 +118,33 @@ function heroColours(palette: CoverPalette, theme?: HeroPresentationTheme | null
 }
 const TRANSPARENT_PIXEL = 'data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=';
 
-function ScenicBackground({ src, media, sizes, className, onReady }: {
+function ScenicBackground({ src, media, sizes, className, animateEntrance = false, onReady }: {
   src: string | StaticImageData;
   media: string;
   sizes: string;
   className?: string;
+  animateEntrance?: boolean;
   onReady: () => void;
 }) {
+  const [loaded, setLoaded] = useState(!animateEntrance);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (!animateEntrance) {
+      setLoaded(true);
+      return;
+    }
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth > 0 && img.currentSrc !== TRANSPARENT_PIXEL) {
+      const timer = setTimeout(() => {
+        setLoaded(true);
+        onReady();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [src, animateEntrance, onReady]);
+
   const { props } = getImageProps({
     src,
     alt: '',
@@ -130,13 +152,30 @@ function ScenicBackground({ src, media, sizes, className, onReady }: {
     sizes,
     unoptimized: typeof src === 'string' && src.startsWith('/api/admin/'),
   });
+
   return (
     <picture>
       <source media={media} srcSet={props.srcSet ?? props.src} sizes={props.sizes} />
       {/* The unmatched viewport receives a transparent pixel; only the matching source downloads. */}
-      <img src={TRANSPARENT_PIXEL} alt="" style={props.style} className={className} fetchPriority="high" onLoad={(event) => {
-        if (event.currentTarget.currentSrc !== TRANSPARENT_PIXEL) onReady();
-      }} />
+      <img
+        ref={imgRef}
+        src={TRANSPARENT_PIXEL}
+        alt=""
+        style={props.style}
+        className={cn(
+          className,
+          animateEntrance && 'transition-opacity ease-out',
+          animateEntrance && (reduceMotion ? 'duration-150' : 'duration-[1200ms]'),
+          loaded ? 'opacity-100' : 'opacity-0'
+        )}
+        fetchPriority="high"
+        onLoad={(event) => {
+          if (event.currentTarget.currentSrc !== TRANSPARENT_PIXEL) {
+            setLoaded(true);
+            onReady();
+          }
+        }}
+      />
     </picture>
   );
 }
@@ -793,8 +832,8 @@ function FeaturedSlide({ issue, animateEntrance, onHeroReady, onPreviewChange }:
   const reduceMotion = useReducedMotion();
   const { toggle, isBookmarked } = useBookmarks();
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [infoDrawerOpen, setInfoDrawerOpen] = useState(false);
   const articleRef = useRef<HTMLElement>(null);
-  const backButtonRef = useRef<HTMLButtonElement>(null);
   const bookmarked = isBookmarked(issue.id);
   const [coverLoaded,setCoverLoaded]=useState(false);
   const onCoverLoad=useCallback(()=>setCoverLoaded(true),[]);
@@ -828,7 +867,7 @@ function FeaturedSlide({ issue, animateEntrance, onHeroReady, onPreviewChange }:
   // but if a `pdf_url` ever lands null here we'd hand react-pdf a broken
   // input — so the carousel just won't render the slide.
   return (
-    <article ref={articleRef} className="scroll-mt-[104px] overflow-hidden bg-[#fffdf9] sm:scroll-mt-[112px]">
+    <article ref={articleRef} className={cn("scroll-mt-[104px] bg-[#fffdf9] sm:scroll-mt-[112px]", !previewOpen && "overflow-hidden min-h-[720px] md:min-h-[max(720px,56.28vw)]")}>
       <div
         aria-hidden={previewOpen || undefined}
         inert={previewOpen || undefined}
@@ -872,29 +911,243 @@ function FeaturedSlide({ issue, animateEntrance, onHeroReady, onPreviewChange }:
         />
       </div>
       <AnimatePresence initial={false}>
-      {previewOpen ? <motion.div key="preview" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -10 }} transition={{ duration: 0.24 }} onAnimationComplete={() => { if (previewOpen) backButtonRef.current?.focus({ preventScroll: true }); }}>
-        <div className="pointer-events-none sticky top-0 z-30 h-0">
-          <div className="pointer-events-auto absolute left-3 top-3 flex w-[calc(100vw-1.5rem)] items-center gap-2 sm:left-8 sm:top-4 sm:w-auto sm:gap-3">
-            <button ref={backButtonRef} type="button" onClick={() => changePreview(false)} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border border-gold-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 shadow-[0_4px_12px_rgba(83,58,22,0.09)] transition-colors hover:border-gold-300 hover:bg-gold-50 hover:text-gray-900">
-              <ArrowLeft className="h-4 w-4" /> Back
-            </button>
-            <button type="button" onClick={() => changePreview(false)} aria-label={`Show details for ${issue.title}`} className="inline-flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-gold-200 bg-white px-2.5 py-2 text-left shadow-[0_4px_12px_rgba(83,58,22,0.09)] transition-colors hover:border-gold-300 hover:bg-gold-50 sm:max-w-xs sm:flex-none">
-              <span className="relative h-10 w-8 shrink-0 overflow-hidden rounded-md bg-gold-50">
-                {issue.cover_image_url ? <Image src={issue.cover_image_url} alt="" fill sizes="32px" className="object-cover" /> : null}
-              </span>
-              <span className="min-w-0">
-                <strong className="block truncate text-sm font-semibold text-gray-900">{issue.magazines.name}</strong>
-                <span className="block text-xs text-gray-600">{monthName} {issue.year}</span>
-              </span>
-            </button>
-          </div>
-        </div>
+      {previewOpen ? <motion.div key="preview" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -10 }} transition={{ duration: 0.24 }}>
         <div id={`preview-${issue.id}`}>
-          <SlideReader issueId={issue.id} pdfUrl={issue.pdf_url!} fallbackCoverUrl={issue.cover_image_url} fallbackTitle={issue.title} magazineName={issue.magazines.name} monthName={monthName} year={issue.year} language={language} />
+          <SlideReader
+            issueId={issue.id}
+            pdfUrl={issue.pdf_url!}
+            fallbackCoverUrl={issue.cover_image_url}
+            fallbackTitle={issue.title}
+            magazineName={issue.magazines.name}
+            monthName={monthName}
+            year={issue.year}
+            language={language}
+            issueTheme={issue.theme}
+            onBack={() => changePreview(false)}
+            onOpenInfo={() => setInfoDrawerOpen(true)}
+          />
         </div>
       </motion.div> : null}
       </AnimatePresence>
+
+      <IssueInfoDrawer
+        issue={issue}
+        open={infoDrawerOpen}
+        onClose={() => setInfoDrawerOpen(false)}
+        bookmarked={bookmarked}
+        onBookmark={() => toggle(issue.id)}
+      />
     </article>
+  );
+}
+
+function IssueInfoDrawer({
+  issue,
+  open,
+  onClose,
+  bookmarked,
+  onBookmark,
+}: {
+  issue: ApiIssue;
+  open: boolean;
+  onClose: () => void;
+  bookmarked: boolean;
+  onBookmark: () => void;
+}) {
+  const drawerRef = useRef<HTMLElement>(null);
+  const monthName = MONTH_NAMES[issue.month as MonthIndex];
+
+  useEffect(() => {
+    if (!open) return;
+    const opener = document.activeElement as HTMLElement | null;
+    const frame = requestAnimationFrame(() => drawerRef.current?.querySelector<HTMLButtonElement>('button[aria-label="Close"]')?.focus());
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+      if (event.key === 'Tab') {
+        const controls = [...(drawerRef.current?.querySelectorAll<HTMLElement>('button, a[href], input, textarea, summary') ?? [])].filter((element) => element.getBoundingClientRect().width > 0 && !element.hasAttribute('disabled'));
+        const first = controls[0]; const last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('keydown', onKey); cancelAnimationFrame(frame); opener?.focus(); };
+  }, [open, onClose]);
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          {/* Backdrop */}
+          <motion.button
+            type="button"
+            aria-label="Close issue information"
+            className="fixed inset-0 z-40 cursor-default bg-gray-950/20"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            onClick={onClose}
+          />
+
+          {/* Drawer Panel — exactly matches the Reading page drawer */}
+          <motion.aside
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="preview-info-title"
+            className="fixed inset-y-0 left-0 z-50 flex w-[min(420px,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-r-2xl border border-flame-100 bg-white shadow-2xl md:inset-y-3 md:left-3 md:rounded-2xl"
+            initial={{ x: -40, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: -40, opacity: 0 }}
+            transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-flame-100 px-4 py-3">
+              <div>
+                <p className="bg-gradient-to-r from-gold-600 to-flame-500 bg-clip-text text-[11px] font-semibold uppercase tracking-wide text-transparent">
+                  Issue information
+                </p>
+                <h2 id="preview-info-title" className="font-heading text-lg font-bold text-gray-900">
+                  {issue.magazines.name}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-flame-50 hover:text-flame-700 cursor-pointer"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto px-4 py-4">
+              {/* Cover thumbnail & Title */}
+              <div className="flex gap-4">
+                <div className="relative h-36 w-[108px] shrink-0 overflow-hidden rounded-md bg-gradient-to-br from-gold-100 to-flame-50 shadow-sm">
+                  <div className="absolute inset-y-0 left-0 z-10 w-1.5 bg-gradient-to-b from-gold-500 to-flame-500" />
+                  {issue.cover_image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={issue.cover_image_url} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full items-center justify-center px-3 text-center text-xs font-semibold text-flame-700">
+                      {issue.magazines.name}
+                    </div>
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base font-semibold leading-snug text-gray-900">
+                    {issue.title}
+                  </h3>
+                  {issue.theme && (
+                    <div className="mt-1.5 flex items-start gap-1.5">
+                      <span aria-hidden className="mt-2 h-3.5 w-[2px] shrink-0 rounded-full bg-gradient-to-b from-gold-500 to-flame-500" />
+                      <p className="font-heading pr-1 pt-0.5 text-sm font-bold leading-normal text-flame-800">
+                        {issue.theme}
+                      </p>
+                    </div>
+                  )}
+                  <p className="mt-2 text-sm text-gray-500">
+                    {formatMonthYear(issue.month, issue.year)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Stats badges */}
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <div className="flex items-center gap-2.5 rounded-lg border border-gray-100 bg-gray-50/60 p-2.5">
+                  <FileText className="h-4 w-4 text-flame-600" />
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase">Pages</p>
+                    <p className="text-sm font-semibold text-gray-800">{issue.page_count ?? '—'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5 rounded-lg border border-gray-100 bg-gray-50/60 p-2.5">
+                  <HardDrive className="h-4 w-4 text-flame-600" />
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase">Size</p>
+                    <p className="text-sm font-semibold text-gray-800">{formatFileSize(issue.file_size_bytes)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Topics */}
+              {issue.topics && issue.topics.length > 0 && (
+                <div className="mt-5">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Topics</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {issue.topics.map((t) => (
+                      <span
+                        key={t}
+                        className="rounded-full bg-flame-50 px-2.5 py-0.5 text-xs font-medium text-flame-700"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Description */}
+              {issue.description && (
+                <div className="mt-5">
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Description</p>
+                  <p className="text-sm leading-relaxed text-gray-600 whitespace-pre-line">
+                    {issue.description}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer Actions */}
+            <div className="border-t border-flame-100 p-4 flex flex-col gap-2">
+              {issue.pdf_url ? (
+                <Link
+                  href={readerPath(issue.id)}
+                  prefetch={true}
+                  onClick={() => rememberReaderSource(issue.id, 'shelf')}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-flame-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-flame-700"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  Read full issue
+                </Link>
+              ) : null}
+              <Link
+                href={issueDetailPath(issue.id)}
+                className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:border-flame-300 hover:bg-flame-50"
+              >
+                View Full Details
+              </Link>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={onBookmark}
+                  className={cn(
+                    "flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition-colors cursor-pointer",
+                    bookmarked
+                      ? "border-flame-300 bg-flame-50 text-flame-700"
+                      : "border-gray-200 text-gray-700 hover:border-flame-300 hover:bg-flame-50"
+                  )}
+                >
+                  <Heart className={cn("h-4 w-4", bookmarked && "fill-[#d97735] text-[#d97735]")} />
+                  {bookmarked ? 'Saved' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 px-4 py-2 text-sm font-semibold transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </motion.aside>
+        </>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -904,12 +1157,12 @@ function ScenicBookCover({issue,sizes,phone=false,onCoverLoad}:{issue:ApiIssue;s
   const [hydrated,setHydrated]=useState(false);
   const coverRef=useRef<HTMLSpanElement>(null);
   const reduceMotion=useReducedMotion();
-  useEffect(()=>{
+  useLayoutEffect(()=>{
     const image=coverRef.current?.querySelector('img');
     if(image?.complete&&image.naturalWidth>0){setLoaded(true);onCoverLoad();}
     else if(image?.complete){setFailed(true);}
     else setHydrated(true);
-  },[onCoverLoad]);
+  },[issue.cover_image_url,onCoverLoad]);
   const waiting=hydrated&&!loaded;
   return <span ref={coverRef} className="scenic-book-cover">
     {issue.cover_image_url&&!failed?<>
@@ -960,6 +1213,7 @@ function HeroDescriptionSummary({
       {truncated ? (
         <Link
           href={issueDetailPath(issueId)}
+          prefetch={true}
           className="mt-1.5 inline-block rounded-md px-1 py-1 text-xs font-semibold underline decoration-current/35 underline-offset-4 transition-opacity hover:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-2"
           style={{ color }}
         >
@@ -986,7 +1240,7 @@ function MobileScenicHero({ issue, eyebrow, monthName, bookmarked, onBookmark, o
   return <div data-hero-swipe className="bg-white md:hidden">
     <div style={sceneVariables} className="scenic-phone-scene relative h-[720px] overflow-hidden">
       <div className={cn('scenic-artboard scenic-artboard-phone',animateOnMount&&sceneReady&&'scenic-artboard-enter')}>
-        <ScenicBackground src={backgroundSrc ?? aimOctoberPhoneHero} media="(max-width: 767px)" sizes="100vw" className="object-cover" onReady={()=>{setSceneReady(true);onReady();}} />
+        <ScenicBackground src={backgroundSrc ?? aimOctoberPhoneHero} media="(max-width: 767px)" sizes="100vw" className="object-cover" animateEntrance={animateEntrance} onReady={()=>{setSceneReady(true);onReady();}} />
         <div className="absolute inset-x-0 bottom-0 h-[24%] bg-gradient-to-b from-transparent via-white/65 to-white" aria-hidden="true" />
         <button type="button" onClick={onBookOpen} disabled={!issue.pdf_url} aria-label={issue.pdf_url?`Read ${issue.title}`:`${issue.title} is not yet readable`} style={{left:`${placement.bookX}%`,bottom:`${100-placement.baselineY}%`,width:`${52*placement.bookScale/100}%`,transform:'translateX(-50%)'}} className="scenic-book-stage absolute z-[3] aspect-[2/3] disabled:cursor-not-allowed">
           <span className="scenic-book-shadow" aria-hidden="true" />
@@ -1007,7 +1261,7 @@ function MobileScenicHero({ issue, eyebrow, monthName, bookmarked, onBookmark, o
       <h1 className="mt-2 font-heading text-[clamp(1.9rem,9vw,3rem)] leading-none transition-colors duration-300" style={{color:issueColours.heading}}>{issue.theme || issue.title}</h1>
       {issue.description ? <HeroDescriptionSummary description={issue.description} color={issueColours.body} issueId={issue.id} mobile /> : null}
       <div className="mt-4 flex gap-2">
-        {issue.pdf_url?<Link href={readerPath(issue.id)} onClick={() => rememberReaderSource(issue.id,'shelf')} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white transition-colors duration-300" style={{background:issueColours.button,color:issueColours.buttonForeground}}><BookOpen className="h-4 w-4"/>Read issue</Link>:<span className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white transition-colors duration-300" style={{background:issueColours.button,color:issueColours.buttonForeground}}><BookOpen className="h-4 w-4"/>Embargoed</span>}
+        {issue.pdf_url?<Link href={readerPath(issue.id)} prefetch={true} onClick={() => rememberReaderSource(issue.id,'shelf')} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white transition-colors duration-300" style={{background:issueColours.button,color:issueColours.buttonForeground}}><BookOpen className="h-4 w-4"/>Read issue</Link>:<span className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white transition-colors duration-300" style={{background:issueColours.button,color:issueColours.buttonForeground}}><BookOpen className="h-4 w-4"/>Embargoed</span>}
         <button type="button" onClick={onPreview} disabled={!issue.pdf_url} aria-label="Preview pages" className="flex h-11 w-11 items-center justify-center rounded-xl border bg-white/80 transition-colors duration-300 disabled:cursor-not-allowed disabled:opacity-50" style={{color:issueColours.heading,borderColor:issueColours.body}}><FileText className="h-5 w-5"/></button>
         <button type="button" onClick={onBookmark} aria-label={bookmarked?'Remove bookmark':'Save to bookmarks'} className="flex h-11 w-11 items-center justify-center rounded-xl border bg-white/80 transition-colors duration-300" style={{color:issueColours.heading,borderColor:issueColours.body}}><Heart className={cn('h-5 w-5',bookmarked&&'fill-[#d97735] text-[#d97735]')}/></button>
       </div>
@@ -1092,6 +1346,7 @@ export function DesktopScenicHero({
           media="(min-width: 768px)"
           sizes="(min-width: 1024px) 1440px, 100vw"
           className="scenic-hero-background object-cover"
+          animateEntrance={animateEntrance}
           onReady={() => {
             setBackgroundReady(true);
             onReady();
@@ -1128,7 +1383,7 @@ export function DesktopScenicHero({
         {issue.description ? <HeroDescriptionSummary description={issue.description} color={issueColours.body} issueId={issue.id} /> : null}
 
         <div className="mt-8 flex items-center gap-3">
-          {issue.pdf_url?<Link href={readerPath(issue.id)} onClick={() => rememberReaderSource(issue.id, 'shelf')} className="scenic-primary-action inline-flex min-h-12 items-center gap-3 rounded-xl px-7 py-3 text-base font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#123e62]" style={{ background: issueColours.button, color: issueColours.buttonForeground }}>
+          {issue.pdf_url?<Link href={readerPath(issue.id)} prefetch={true} onClick={() => rememberReaderSource(issue.id, 'shelf')} className="scenic-primary-action inline-flex min-h-12 items-center gap-3 rounded-xl px-7 py-3 text-base font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#123e62]" style={{ background: issueColours.button, color: issueColours.buttonForeground }}>
             <BookOpen className="h-5 w-5" /> Read issue <ArrowRight className="h-4 w-4" />
           </Link>:<span className="inline-flex min-h-12 items-center gap-3 rounded-xl px-7 py-3 text-base font-semibold text-white transition-colors duration-300" style={{background:issueColours.button,color:issueColours.buttonForeground}}><BookOpen className="h-5 w-5"/>Embargoed</span>}
           <button type="button" onClick={onPreview} disabled={!issue.pdf_url} style={{color:issueColours.heading,borderColor:issueColours.body}} className="scenic-secondary-action inline-flex min-h-12 items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#123e62] disabled:cursor-not-allowed disabled:opacity-50">

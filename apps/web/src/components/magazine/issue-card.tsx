@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ViewportCoverImage } from '@/components/magazine/viewport-cover-image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { BookOpen, Check, Download, Heart, Lock, Share2 } from 'lucide-react';
+import { BookOpen, Check, FileText, Heart, Lock, Share2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { IssueWithMagazine } from '@aim-archive/shared';
 import { LANGUAGE_NAMES } from '@aim-archive/shared';
@@ -81,14 +81,17 @@ export function IssueCard({ issue, index = 0, source = 'browse' }: IssueCardProp
       )}
     >
       {/* Whole-card click target → open reader. Disabled in selection mode
-          so taps toggle selection via the wrapper's onClick instead. */}
+          so taps toggle selection via the wrapper's onClick instead.
+          Marked tabIndex={-1} and aria-hidden to eliminate duplicate tab stops for screen readers. */}
       {!selectionEnabled && (
         <Link
           href={readHref}
+          prefetch={true}
           onClick={() => {
             if (!issue.isEmbargoed) rememberReaderSource(issue.id, source);
           }}
-          aria-label={`Read ${issue.title}`}
+          tabIndex={-1}
+          aria-hidden="true"
           className="absolute inset-0 z-0"
         />
       )}
@@ -123,7 +126,7 @@ export function IssueCard({ issue, index = 0, source = 'browse' }: IssueCardProp
           />
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center">
-            <span className="bg-gradient-to-r from-gold-600 to-flame-500 bg-clip-text text-[10px] font-medium tracking-widest text-transparent uppercase">
+            <span className="text-[10px] font-semibold tracking-widest text-flame-700 uppercase">
               {issue.magazine.name}
             </span>
             <span className="font-heading mt-1 text-lg font-bold text-gray-900">
@@ -144,12 +147,12 @@ export function IssueCard({ issue, index = 0, source = 'browse' }: IssueCardProp
         {issue.isEmbargoed && (
           <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1 rounded-full bg-gray-900/80 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm backdrop-blur-sm">
             <Lock className="h-2.5 w-2.5" />
-            <span>{issue.embargoLiftLabel ?? 'Subscribers'}</span>
+            <span>{issue.embargoLiftLabel ? `Available ${issue.embargoLiftLabel}` : 'Subscriber Edition'}</span>
           </div>
         )}
         {issue.isEmbargoed && !selectionEnabled && (
-          <div className="absolute top-3 left-3 z-10 rounded-full border border-gold-200 bg-white/90 px-2 py-1 text-[10px] font-bold uppercase tracking-normal text-gold-800 shadow-sm">
-            Subscribers first
+          <div className="absolute top-3 left-3 z-10 rounded-full border border-gold-200 bg-white/95 px-2 py-1 text-[10px] font-bold uppercase tracking-normal text-gold-800 shadow-sm">
+            Subscriber Edition
           </div>
         )}
 
@@ -218,9 +221,9 @@ export function IssueCard({ issue, index = 0, source = 'browse' }: IssueCardProp
           {[...issue.topics]
             .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
             .slice(0, 2)
-            .map((topic) => (
+            .map((topic, topicIdx) => (
               <span
-                key={topic}
+                key={`${topic}-${topicIdx}`}
                 className="rounded-full bg-gradient-to-r from-gold-50 to-flame-50 px-2 py-0.5 text-[10px] font-medium text-flame-700"
               >
                 {topic}
@@ -248,6 +251,7 @@ export function IssueCard({ issue, index = 0, source = 'browse' }: IssueCardProp
             // carries the availability promise; this button is the action.
             <Link
               href={detailHref}
+              prefetch={true}
               onPointerEnter={prepareDetails}
               onPointerDown={prepareDetails}
               onFocus={prepareDetails}
@@ -260,6 +264,7 @@ export function IssueCard({ issue, index = 0, source = 'browse' }: IssueCardProp
             <>
               <Link
                 href={readHref}
+                prefetch={true}
                 onClick={() => rememberReaderSource(issue.id, source)}
                 className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-gold-500 to-flame-500 py-2 text-xs font-semibold text-white shadow-[0_6px_16px_rgba(190,140,46,0.22)] transition-all hover:from-gold-600 hover:to-flame-600"
               >
@@ -268,12 +273,13 @@ export function IssueCard({ issue, index = 0, source = 'browse' }: IssueCardProp
               </Link>
               <Link
                 href={detailHref}
+                prefetch={true}
                 onPointerEnter={prepareDetails}
                 onPointerDown={prepareDetails}
                 onFocus={prepareDetails}
                 className="relative z-20 flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 py-2 text-xs font-semibold text-gray-700 transition-colors hover:border-flame-300 hover:bg-flame-50"
               >
-                <Download className="h-3.5 w-3.5" />
+                <FileText className="h-3.5 w-3.5" />
                 Details
               </Link>
             </>

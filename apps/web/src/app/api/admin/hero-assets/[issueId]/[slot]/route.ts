@@ -12,7 +12,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ issu
     const presentation = await readHeroPresentation(issueId); const record = presentation[slot as HeroArtworkSlot];
     if (!record) return new Response(null,{ status: 404 });
     const object = await getR2Client().send(new GetObjectCommand({ Bucket:r2Bucket(),Key:record.key }),{ abortSignal:AbortSignal.any([request.signal,AbortSignal.timeout(30_000)]) });
-    if (!object.Body || object.ContentType !== 'image/png' || !object.ContentLength || object.ContentLength > 12*1024*1024) return new Response(null,{ status:404 });
-    return new Response(object.Body.transformToWebStream(),{ headers:{ 'Content-Type':'image/png','Content-Length':String(object.ContentLength),'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff' } });
+    const contentType = object.ContentType || 'image/avif';
+    if (!object.Body || !['image/avif','image/webp','image/png','image/jpeg'].includes(contentType) || !object.ContentLength || object.ContentLength > 12*1024*1024) return new Response(null,{ status:404 });
+    return new Response(object.Body.transformToWebStream(),{ headers:{ 'Content-Type':contentType,'Content-Length':String(object.ContentLength),'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff' } });
   } catch { return new Response(null,{ status:503 }); }
 }

@@ -243,7 +243,7 @@ function ContinueReadingCard({
         type="button"
         onClick={onRemove}
         aria-label="Remove from history"
-        className="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-lg bg-white text-gray-500 hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-flame-500"
+        className="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-lg bg-white text-gray-500 hover:bg-red-50 hover:text-red-700 focus-visible:ring-2 focus-visible:ring-flame-500"
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>

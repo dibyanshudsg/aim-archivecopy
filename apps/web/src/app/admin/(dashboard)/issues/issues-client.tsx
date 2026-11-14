@@ -853,7 +853,7 @@ export function AdminIssuesClient({
                             <div className="min-w-0">
                               <div className="font-medium text-gray-900">{issue.title}</div>
                               {issue.theme && (
-                                <div className="font-heading mt-0.5 bg-gradient-to-r from-gold-700 to-flame-700 bg-clip-text pr-1 text-[12px] font-semibold text-transparent lg:hidden">
+                                <div className="font-heading mt-0.5 pr-1 text-[12px] font-semibold text-flame-700 lg:hidden">
                                   {issue.theme}
                                 </div>
                               )}
@@ -862,7 +862,7 @@ export function AdminIssuesClient({
                         </td>
                         <td className="hidden px-4 py-4 lg:table-cell">
                           {issue.theme ? (
-                            <span className="font-heading bg-gradient-to-r from-gold-700 to-flame-700 bg-clip-text pr-1 text-sm font-semibold text-transparent">
+                            <span className="font-heading pr-1 text-sm font-semibold text-flame-700">
                               {issue.theme}
                             </span>
                           ) : (

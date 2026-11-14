@@ -2,16 +2,6 @@
 
 Updated: 31 October 2026. This is the single active task tracker for AIM Archive. Society acceptance is owner-reported and the owner continues participating. Final operational acceptance and responsibility transfer remain open unless explicitly checked with evidence.
 
-## 31 October 2026 audit snapshot
-
-This audit reconciles the full tracker against GitHub `main` at `52f9953`, the 31 October Vercel web release, earlier candidate evidence, and read-only production HTTP checks. Home, Browse, Search, Bookmarks, Admin login, Reader shell, `/api/issues`, logo, favicon and an uploaded hero artwork returned HTTP 200. No production mutation, indexing dispatch, credential change or Cloudflare change was performed.
-
-**Deployed and read-only verified:** GitHub `main` at `52f9953` is live at `https://aim-archive.vercel.app`. The release adds managed monthly hero scenes, Hero Studio, and public/Admin/Reader loading improvements on top of the 17 October security release. The live CSP now permits same-origin Hero Studio previews; an uploaded scenic image and the public routes above returned 200. See [release record](docs/handover/WEB_RELEASE_2026-10-31.md).
-
-**Deployed code with incomplete workflow acceptance:** the earlier India-time scheduling, selected-hero PDF exception, persistent hide/restore, branding/profile controls and the new Hero Studio have not had authenticated hosted mutation, rollover, mobile-browser or full Reader/PDF acceptance. Local build, lint, regression tests and all ten PDF-security suites passed. Deployment and read-only route checks do not close those gates.
-
-**Highest remaining risk:** the old public R2 PDF origin can still bypass the application restriction. Application-side private delivery is live, but P2-09 is not complete until Society R2 administration closes every former public origin and verifies normal public/Admin/worker access afterward.
-
 ## Remaining work — priority order
 
 1. **P0/P2/P9 security ownership and R2 closure:** confirm Dibyanshu Ji/Society R2 access; enumerate old origins/cache rules; close the direct-PDF bypass; verify released, restricted, Admin and worker paths. This is the only confirmed live data-exposure gap.

@@ -12,9 +12,11 @@ import { IssueCard } from '@/components/magazine/issue-card';
 // tag, so unchanged issue pages can remain cached for a year.
 export const revalidate = 31_536_000;
 
-async function fetchIssueServer(id: string): Promise<ApiIssue | null> {
-  return getPublicIssueById(id);
-}
+const fetchIssueServer = unstable_cache(
+  async (id: string): Promise<ApiIssue | null> => getPublicIssueById(id),
+  ['issue-detail-page-v2'],
+  { revalidate: 31_536_000, tags: ['public-archive'] },
+);
 
 const fetchRelatedIssues = unstable_cache(
   async (issue: ApiIssue) => listRelatedReadableIssues(issue, 6),
@@ -60,7 +62,30 @@ export default async function IssueDetailPage({
       { '@type': 'ListItem', position: 3, name: subject, item: siteUrl(`/issue/${issue.id}`) },
     ],
   };
-  return <><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(issueJsonLd).replace(/</g, '\\u003c') }} /><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd).replace(/</g, '\\u003c') }} /><IssueDetailClient initialIssue={issue} navigation={navigation} relatedSection={<Suspense fallback={<RelatedIssuesLoading />}><RelatedIssues issue={issue} /></Suspense>} /></>;
+  return (
+    <>
+      <script
+        key="issue-jsonld"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(issueJsonLd).replace(/</g, '\\u003c') }}
+      />
+      <script
+        key="breadcrumb-jsonld"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd).replace(/</g, '\\u003c') }}
+      />
+      <IssueDetailClient
+        key={issue.id}
+        initialIssue={issue}
+        navigation={navigation}
+        relatedSection={
+          <Suspense key="related-issues-suspense" fallback={<RelatedIssuesLoading />}>
+            <RelatedIssues issue={issue} />
+          </Suspense>
+        }
+      />
+    </>
+  );
 }
 
 async function RelatedIssues({ issue }: { issue: ApiIssue }) {
@@ -72,12 +97,9 @@ async function RelatedIssues({ issue }: { issue: ApiIssue }) {
       <h2 id="related-heading" className="font-heading mb-5 text-2xl font-semibold text-gray-900">
         Readable editions to explore
       </h2>
-      <div className="flex flex-wrap justify-center gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
         {relatedIssues.map((related, index) => (
-          <div
-            key={related.id}
-            className="w-full sm:w-[calc((100%_-_2rem)/3)] lg:w-[calc((100%_-_3rem)/4)] xl:w-[calc((100%_-_5rem)/6)]"
-          >
+          <div key={related.id}>
             <IssueCard issue={normalizeIssue(related)} index={index} />
           </div>
         ))}
@@ -90,11 +112,11 @@ function RelatedIssuesLoading() {
   return (
     <section className="mt-14" aria-label="Loading related editions" aria-busy="true">
       <div className="mb-5 h-8 w-72 animate-pulse rounded-lg bg-gray-100 motion-reduce:animate-none" />
-      <div className="flex flex-wrap justify-center gap-4" aria-hidden="true">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6" aria-hidden="true">
         {Array.from({ length: 6 }, (_, index) => (
           <div
             key={index}
-            className="aspect-[3/4] w-full animate-pulse rounded-2xl bg-flame-50 motion-reduce:animate-none sm:w-[calc((100%_-_2rem)/3)] lg:w-[calc((100%_-_3rem)/4)] xl:w-[calc((100%_-_5rem)/6)]"
+            className="aspect-[3/4] w-full animate-pulse rounded-2xl bg-flame-50 motion-reduce:animate-none"
           />
         ))}
       </div>

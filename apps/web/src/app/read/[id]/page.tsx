@@ -63,8 +63,27 @@ const MAX_PAGE_RENDER_SCALE = 2;
 const MAX_RENDER_DPR = 2;
 const RENDER_SETTLE_MS = 180;
 
+function ReaderShellLoading() {
+  return (
+    <div className="flex h-screen flex-col bg-gray-100">
+      <div className="flex h-14 items-center justify-between border-b border-flame-100 bg-white px-4 sm:px-6">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 animate-pulse rounded-lg bg-gray-100" />
+          <div className="h-4 w-36 animate-pulse rounded bg-gray-100" />
+        </div>
+      </div>
+      <div className="flex flex-1 items-center justify-center p-6">
+        <div className="flex flex-col items-center">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-flame-600 border-t-transparent" />
+          <span className="mt-3 text-xs font-semibold text-gray-500">Opening magazine…</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ReaderPage({ params }: { params: Promise<{ id: string }> }) {
-  return <Suspense fallback={<ReaderOpeningState />}><ReaderContent params={params} /></Suspense>;
+  return <Suspense fallback={<ReaderShellLoading />}><ReaderContent params={params} /></Suspense>;
 }
 
 function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
@@ -95,7 +114,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
   const [findDrawerOpen, setFindDrawerOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const closeInfoDrawer = useCallback(() => setInfoDrawerOpen(false), []);
-  const [scale, setScale] = useState(1.0);
+  const [scale, setScale] = useState(0.5);
   const [fitWidthScale, setFitWidthScale] = useState<number | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [error, setError] = useState(false);
@@ -105,7 +124,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
   // (~200ms) instead of waiting for the canvas paint (~3-5s on cold load).
   // Flipped true once the first Page's onRenderSuccess fires.
   const [firstPageRendered, setFirstPageRendered] = useState(false);
-  const [viewMode, setViewMode] = useState<'single' | 'continuous'>('single');
+  const [viewMode, setViewMode] = useState<'single' | 'continuous'>('continuous');
   const [pagesPerView, setPagesPerView] = useState<1 | 2>(1);
   // Phones (< sm) get single-page only — two-page spreads are unreadable on
   // a 360–414 px screen. We don't overwrite the user's stored preference;
@@ -265,7 +284,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
     }
   }, [id]);
 
-  // Restore global view-mode preferences once on mount. We set `hydrated` at
+  // Restore global view-mode and zoom preferences once on mount. We set `hydrated` at
   // the end so the matching write effects below don't fire with the default
   // state and overwrite the saved values before this read flushes.
   const [hydrated, setHydrated] = useState(false);
@@ -273,9 +292,23 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
     if (typeof window === 'undefined') return;
     const saved = window.localStorage.getItem('aim-reader-view-mode');
     if (saved === 'single' || saved === 'continuous') setViewMode(saved);
-    else if (window.matchMedia('(max-width: 639px)').matches) setViewMode('continuous');
+    else setViewMode('continuous');
     const savedPpv = window.localStorage.getItem('aim-reader-pages-per-view');
     if (savedPpv === '1' || savedPpv === '2') setPagesPerView(Number(savedPpv) as 1 | 2);
+    else setPagesPerView(1);
+    const savedZoom = window.localStorage.getItem('aim-reader-zoom');
+    if (savedZoom) {
+      const parsedZoom = parseFloat(savedZoom);
+      if (!isNaN(parsedZoom) && parsedZoom >= 0.1 && parsedZoom <= 4) {
+        setScale(parsedZoom);
+      }
+    } else {
+      if (window.innerWidth >= 1024) {
+        setScale(0.5);
+      } else {
+        setScale(1.0);
+      }
+    }
     setHydrated(true);
   }, []);
 
@@ -289,36 +322,32 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
     window.localStorage.setItem('aim-reader-pages-per-view', String(pagesPerView));
   }, [pagesPerView, hydrated]);
 
+  useEffect(() => {
+    if (!hydrated || typeof window === 'undefined') return;
+    window.localStorage.setItem('aim-reader-zoom', String(scale));
+  }, [scale, hydrated]);
+
   // Per-issue resume: restore last-known scale + page (page only when no
   // ?page= is in the URL — shared deep links should always win). Scroll
   // position is restored later, after the PDF document loads (see below).
-  // Phone default zoom is 70% — full 100% renders too large for a 360–414 px
-  // screen on first open. Any saved per-issue scale always wins over the
-  // phone default, so the user's preference for an issue is sticky.
   useEffect(() => {
     if (!issue || typeof window === 'undefined') return;
     setInitialScrollDone(false); // gate saving + initial-scroll until restoration runs
 
-    const isPhonePx = window.matchMedia('(max-width: 639px)').matches;
     let savedScale: number | undefined;
     let savedPage: number | undefined;
     try {
       const raw = window.localStorage.getItem(`aim-reader-state-${issue.id}`);
       if (raw) {
         const saved = JSON.parse(raw) as { page?: number; scale?: number };
-        if (typeof saved.scale === 'number' && saved.scale > 0) savedScale = saved.scale;
+        if (typeof saved.scale === 'number' && saved.scale >= 0.1 && saved.scale <= 4) savedScale = saved.scale;
         if (typeof saved.page === 'number' && saved.page >= 1) savedPage = saved.page;
       }
     } catch {
       /* malformed state — ignore */
     }
 
-    if (isPhonePx) {
-      // Phone always starts from a freshly measured fit-width scale below.
-      // Saved zoom is intentionally ignored so reopening never starts enlarged.
-      setScale(1);
-      setFitWidthScale(null);
-    } else if (savedScale != null) {
+    if (savedScale != null) {
       setScale(savedScale);
     }
 
@@ -1064,11 +1093,29 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
     setScale(next);
   }, [effectivePagesPerView, pageAspect]);
 
+  // First-time issue reading zoom: 50% on desktop (>=1024px), Fit to size for tablet & phone (<1024px)
   useEffect(() => {
-    if (!isPhone || !pageAspect) return;
-    const frame = window.requestAnimationFrame(fitWidth);
-    return () => window.cancelAnimationFrame(frame);
-  }, [fitWidth, id, isPhone, pageAspect]);
+    if (!pageAspect || typeof window === 'undefined') return;
+    let savedScale: number | undefined;
+    try {
+      const raw = window.localStorage.getItem(`aim-reader-state-${issue?.id}`);
+      if (raw) {
+        const saved = JSON.parse(raw) as { scale?: number };
+        if (typeof saved.scale === 'number') savedScale = saved.scale;
+      }
+    } catch {
+      /* ignore */
+    }
+
+    if (savedScale == null) {
+      if (window.innerWidth < 1024) {
+        fitWidth();
+      } else {
+        setScale(0.5);
+      }
+    }
+  }, [pageAspect, fitWidth, issue?.id]);
+
   /** Double-tap toggle: zoom in to 1.8× from default, back to default at zoom. */
   const toggleZoom = () => {
     setScale((s) => (s > 1.4 ? (isPhone ? fitWidthScale ?? 1 : 1) : 1.8));
@@ -1097,7 +1144,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
       <main className="flex h-screen items-center justify-center bg-gray-50">
         <div className="text-center">
           <h1 className="font-heading text-2xl font-bold text-gray-900">Issue not found</h1>
-          <Link href="/browse" className="mt-4 inline-block bg-gradient-to-r from-gold-600 to-flame-500 bg-clip-text text-transparent">
+          <Link href="/browse" className="mt-4 inline-block font-semibold text-flame-700 hover:text-flame-800 hover:underline">
             Back to Browse
           </Link>
         </div>
@@ -1193,27 +1240,22 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
                 onClick={() => setInfoDrawerOpen(true)}
                 aria-label={`Information about ${issue.title}`}
                 aria-expanded={infoDrawerOpen}
-                className="group relative flex shrink-0 items-center gap-2 rounded-xl border border-flame-100 bg-gradient-to-br from-white to-flame-50/40 p-1.5 text-left shadow-sm transition-colors hover:border-flame-200 hover:bg-flame-50/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame-500 lg:min-w-0 lg:px-2"
+                className="group flex min-w-0 max-w-[140px] xs:max-w-[180px] sm:max-w-[240px] lg:max-w-none shrink-0 lg:shrink items-center gap-2 rounded-xl border border-flame-100/90 bg-gradient-to-br from-white to-flame-50/40 p-1.5 text-left shadow-xs transition-colors hover:border-flame-200 hover:bg-flame-50/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame-500 lg:px-2.5"
               >
                 {issue.coverImageUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={issue.coverImageUrl}
                     alt=""
-                    className="h-10 w-[30px] shrink-0 rounded-sm object-cover shadow-sm ring-1 ring-flame-100"
+                    className="h-9 w-[26px] shrink-0 rounded object-cover shadow-xs ring-1 ring-flame-200/60"
                   />
                 )}
-                <span className="absolute right-0.5 top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white text-flame-700 shadow-sm lg:hidden" aria-hidden="true">
-                  <Info className="h-2.5 w-2.5" />
-                </span>
-                <span className="hidden min-w-0 lg:block">
-                  <span className="flex items-center gap-1.5 truncate text-sm font-semibold text-gray-900">
-                    <span className="truncate">{issue.magazine?.name}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-semibold text-gray-900 group-hover:text-flame-800 sm:text-sm">
+                    {issue.theme || issue.magazine?.name}
                   </span>
-                  <span className="flex min-w-0 items-center text-xs">
-                    <span className="truncate text-gray-500">
-                      {formatMonthYear(issue.month, issue.year)}
-                    </span>
+                  <span className="block truncate text-[10px] text-gray-500 sm:text-xs">
+                    {formatMonthYear(issue.month, issue.year)}
                   </span>
                 </span>
               </button>
@@ -1449,24 +1491,31 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
         className="relative flex-1 overflow-auto"
         style={{ touchAction: 'pan-x pan-y' }}
       >
-        {/* Keep the opening state calm while PDF.js acquires the document.
-            Once ready, retain the fast cover JPEG until page 1 is rasterized. */}
-        {numPages === 0 && !error ? (
-          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-gradient-to-b from-[#fffaf1] to-gray-100 p-6">
-            <ReaderLoadingState label="Opening magazine" />
-          </div>
-        ) : issue.coverImageUrl && !firstPageRendered ? (
+        {/* Retain the fast cover JPEG immediately while PDF.js acquires and rasterizes the document. */}
+        {!firstPageRendered && issue?.coverImageUrl ? (
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center p-4 transition-opacity duration-300 sm:p-8"
+            className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center p-4 transition-opacity duration-300 sm:p-8"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={issue.coverImageUrl}
               alt=""
               fetchPriority="high"
-              className="h-full max-h-full w-auto rounded-md object-contain shadow-xl"
+              className="h-auto max-h-[82vh] w-auto max-w-full rounded-md object-contain shadow-2xl"
             />
+            {numPages === 0 && (
+              <div className="mt-4 rounded-full border border-gold-200/80 bg-white/95 px-4 py-1.5 shadow-md backdrop-blur-xs">
+                <span className="flex items-center gap-2 text-xs font-semibold text-flame-700">
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-flame-600 border-t-transparent" />
+                  Opening magazine…
+                </span>
+              </div>
+            )}
+          </div>
+        ) : numPages === 0 && !error ? (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-gradient-to-b from-[#fffaf1] to-gray-100 p-6">
+            <ReaderLoadingState label="Opening magazine" />
           </div>
         ) : null}
         <div
@@ -1486,7 +1535,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
               </p>
               <Link
                 href={`/issue/${issue.id}`}
-                className="mt-4 inline-block bg-gradient-to-r from-gold-600 to-flame-500 bg-clip-text text-sm text-transparent"
+                className="mt-4 inline-block text-sm font-semibold text-flame-700 hover:text-flame-800 hover:underline"
               >
                 View issue details instead
               </Link>
@@ -1673,6 +1722,46 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
         enabled={viewMode === 'continuous'}
       />
 
+      {/* Mobile bottom reading pill for thumb reachability in single-page mode */}
+      {isPhone && viewMode === 'single' && numPages > 0 && (
+        <aside
+          aria-label="Reading page navigation"
+          className="fixed bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-full border border-flame-200/80 bg-white/95 px-3 py-1 shadow-lg backdrop-blur-md"
+        >
+          <button
+            type="button"
+            onClick={() => goToPage(currentPage - effectivePagesPerView)}
+            disabled={currentPage <= 1}
+            aria-label="Previous page"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-flame-50 hover:text-flame-700 disabled:opacity-30"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <span className="min-w-[70px] text-center text-xs font-semibold text-gray-800">
+            {currentPage} <span className="font-normal text-gray-400">/</span> {numPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => goToPage(currentPage + effectivePagesPerView)}
+            disabled={currentPage >= numPages}
+            aria-label="Next page"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-flame-50 hover:text-flame-700 disabled:opacity-30"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+          <div className="mx-1 h-4 w-px bg-gray-200" aria-hidden="true" />
+          <button
+            type="button"
+            onClick={() => setViewMode('continuous')}
+            aria-label="Switch to continuous scroll"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-gray-600 transition-colors hover:bg-flame-50 hover:text-flame-700"
+            title="Continuous scroll"
+          >
+            <Rows3 className="h-4 w-4" />
+          </button>
+        </aside>
+      )}
+
       <CopyDisclaimerToast />
     </main>
   );
@@ -1710,7 +1799,26 @@ function PageControls({
   showPagesPerViewToggle?: boolean;
 }) {
   const buttonClass =
-    `flex ${compact ? 'h-11 w-11' : 'h-9 w-9'} shrink-0 items-center justify-center rounded-lg text-gray-600 transition-all hover:bg-white hover:text-flame-700 hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-600 disabled:hover:shadow-none`;
+    `flex ${compact ? 'h-8 w-8' : 'h-9 w-9'} shrink-0 items-center justify-center rounded-lg text-gray-600 transition-all hover:bg-white hover:text-flame-700 hover:shadow-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-600 disabled:hover:shadow-none`;
+
+  const [inputVal, setInputVal] = useState(String(currentPage));
+  const isFocusedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isFocusedRef.current) {
+      setInputVal(String(currentPage));
+    }
+  }, [currentPage]);
+
+  const commitPage = (val: string) => {
+    const n = parseInt(val, 10);
+    if (!isNaN(n) && n >= 1 && n <= numPages) {
+      goToPage(n);
+      setInputVal(String(n));
+    } else {
+      setInputVal(String(currentPage));
+    }
+  };
 
   return (
     <div className="flex items-center gap-0.5 rounded-xl bg-gradient-to-br from-flame-50/50 to-gold-50/40 p-0.5 ring-1 ring-flame-100/70">
@@ -1720,20 +1828,45 @@ function PageControls({
         className={buttonClass}
         aria-label="Previous page"
       >
-        <ChevronLeft className="h-5 w-5" />
+        <ChevronLeft className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
       </button>
 
       <div className={`flex shrink-0 items-center ${compact ? 'gap-1' : 'gap-1.5 px-1'}`}>
         <input
-          type="number"
-          min={1}
-          max={numPages}
-          value={currentPage}
-          onChange={(e) => goToPage(Number(e.target.value))}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={inputVal}
+          onFocus={(e) => {
+            isFocusedRef.current = true;
+            e.target.select();
+          }}
+          onBlur={() => {
+            isFocusedRef.current = false;
+            commitPage(inputVal);
+          }}
+          onChange={(e) => {
+            const raw = e.target.value.trim();
+            if (/^\d*$/.test(raw)) {
+              setInputVal(raw);
+              const n = parseInt(raw, 10);
+              if (!isNaN(n) && n >= 1 && n <= numPages) {
+                goToPage(n);
+              }
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.currentTarget.blur();
+            } else if (e.key === 'Escape') {
+              setInputVal(String(currentPage));
+              e.currentTarget.blur();
+            }
+          }}
           aria-label={`Page number, of ${numPages || 'unknown'}`}
-          className={`${compact ? 'w-11 px-1' : 'w-14 px-2'} rounded-lg border border-flame-200/60 bg-white/80 py-1 text-center text-sm text-gray-900 transition-colors focus:border-flame-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-flame-100/70 [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none`}
+          className={`${compact ? 'w-10 px-0.5 text-xs' : 'w-14 px-2 text-sm'} rounded-lg border border-flame-200/60 bg-white/80 py-1 text-center font-medium text-gray-900 transition-colors focus:border-flame-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-flame-100/70`}
         />
-        <span aria-hidden="true" className="text-sm text-gray-500">/ {numPages || '—'}</span>
+        <span aria-hidden="true" className={`${compact ? 'text-xs' : 'text-sm'} text-gray-500`}>/ {numPages || '—'}</span>
       </div>
 
       <button
@@ -1742,7 +1875,7 @@ function PageControls({
         className={buttonClass}
         aria-label="Next page"
       >
-        <ChevronRight className="h-5 w-5" />
+        <ChevronRight className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
       </button>
 
       {!compact && <div className="mx-0.5 h-5 w-px shrink-0 bg-flame-200/70" aria-hidden="true" />}
@@ -2004,6 +2137,46 @@ function MobileReaderMenu({
   );
 }
 
+function HighlightedSnippet({ snippet, query }: { snippet: string; query: string }) {
+  const clean = snippet
+    .replace(/<\/?mark>/gi, '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&');
+
+  const trimmed = query.trim();
+  if (!trimmed) return <>{clean}</>;
+
+  const terms = trimmed
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+
+  if (terms.length === 0) return <>{clean}</>;
+
+  const regex = new RegExp(`(${terms.join('|')})`, 'gi');
+  const parts = clean.split(regex);
+
+  return (
+    <>
+      {parts.map((part, index) =>
+        regex.test(part) ? (
+          <mark
+            key={index}
+            className="rounded bg-amber-200/90 px-0.5 font-semibold text-amber-950"
+          >
+            {part}
+          </mark>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
+}
+
 function FindTextDrawer({
   issueId,
   open,
@@ -2019,6 +2192,7 @@ function FindTextDrawer({
   const [results, setResults] = useState<FullTextSearchResult[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const inputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -2028,18 +2202,63 @@ function FindTextDrawer({
     return () => { cancelAnimationFrame(frame); window.removeEventListener('keydown', onKey); };
   }, [open, onClose]);
 
+  // Search-as-you-type with 220ms debounce
+  useEffect(() => {
+    if (!open) return;
+    const value = query.trim();
+    if (!value) {
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+      setResults([]);
+      setStatus('idle');
+      return;
+    }
+
+    setStatus('loading');
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `/api/issues/${encodeURIComponent(issueId)}/search?q=${encodeURIComponent(value)}`,
+          { signal: controller.signal },
+        );
+        if (!response.ok) throw new Error('search failed');
+        const payload = (await response.json()) as { data: FullTextSearchResult[] };
+        setResults(payload.data);
+        setStatus('done');
+      } catch (err: unknown) {
+        if ((err as { name?: string })?.name === 'AbortError') return;
+        setResults([]);
+        setStatus('error');
+      }
+    }, 220);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query, issueId, open]);
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const value = query.trim();
     if (!value) return;
+    if (abortControllerRef.current) abortControllerRef.current.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     setStatus('loading');
     try {
-      const response = await fetch(`/api/issues/${encodeURIComponent(issueId)}/search?q=${encodeURIComponent(value)}`);
+      const response = await fetch(
+        `/api/issues/${encodeURIComponent(issueId)}/search?q=${encodeURIComponent(value)}`,
+        { signal: controller.signal },
+      );
       if (!response.ok) throw new Error('search failed');
-      const payload = await response.json() as { data: FullTextSearchResult[] };
+      const payload = (await response.json()) as { data: FullTextSearchResult[] };
       setResults(payload.data);
       setStatus('done');
-    } catch {
+    } catch (err: unknown) {
+      if ((err as { name?: string })?.name === 'AbortError') return;
       setResults([]);
       setStatus('error');
     }
@@ -2076,7 +2295,7 @@ function FindTextDrawer({
 
             <form onSubmit={submit} className="border-b border-gray-100 p-4">
               <div className="flex gap-2">
-                <label className="relative min-w-0 flex-1">
+                <div className="relative min-w-0 flex-1">
                   <span className="sr-only">Text to find</span>
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                   <input
@@ -2085,22 +2304,47 @@ function FindTextDrawer({
                     onChange={(event) => setQuery(event.target.value)}
                     maxLength={200}
                     placeholder="Search this issue…"
-                    className="min-h-11 w-full rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-3 text-sm text-gray-900 outline-none transition focus:border-flame-400 focus:bg-white focus:ring-2 focus:ring-flame-100"
+                    className="min-h-11 w-full rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-8 text-sm text-gray-900 outline-none transition focus:border-flame-400 focus:bg-white focus:ring-2 focus:ring-flame-100"
                   />
-                </label>
-                <button type="submit" disabled={!query.trim() || status === 'loading'} className="min-h-11 rounded-xl bg-flame-600 px-4 text-sm font-semibold text-white transition hover:bg-flame-700 disabled:opacity-50">
-                  {status === 'loading' ? 'Finding…' : 'Find'}
+                  {query && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuery('');
+                        inputRef.current?.focus();
+                      }}
+                      className="absolute right-2.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full bg-gray-200 text-gray-500 hover:bg-gray-300 hover:text-gray-700"
+                      aria-label="Clear search"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="submit"
+                  disabled={!query.trim() || status === 'loading'}
+                  className="min-h-11 rounded-xl bg-flame-600 px-4 text-sm font-semibold text-white transition hover:bg-flame-700 disabled:opacity-50"
+                >
+                  {status === 'loading' ? 'Searching…' : 'Find'}
                 </button>
               </div>
             </form>
 
             <div className="flex-1 overflow-y-auto p-4" aria-live="polite">
-              {status === 'idle' && <p className="text-sm text-gray-500">Searches the indexed text of this issue.</p>}
+              {status === 'idle' && <p className="text-sm text-gray-500">Type to search inside this issue.</p>}
+              {status === 'loading' && results.length === 0 && (
+                <div className="flex items-center gap-2 py-4 text-sm text-gray-500">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-flame-500 border-t-transparent" />
+                  <span>Searching issue text…</span>
+                </div>
+              )}
               {status === 'error' && <p className="text-sm text-red-600">Search could not load. Please try again.</p>}
               {status === 'done' && results.length === 0 && <p className="text-sm text-gray-500">No matches found in this issue.</p>}
               {results.length > 0 && (
                 <div className="space-y-2">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">{results.length} {results.length === 1 ? 'match' : 'matches'}</p>
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                    {results.length} {results.length === 1 ? 'match' : 'matches'}
+                  </p>
                   {results.map((result) => (
                     <button
                       key={`${result.issue_id}-${result.page_number}`}
@@ -2109,7 +2353,9 @@ function FindTextDrawer({
                       className="w-full rounded-xl border border-gray-100 bg-gray-50 px-3 py-3 text-left transition hover:border-flame-200 hover:bg-flame-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-flame-500"
                     >
                       <span className="text-xs font-semibold text-flame-700">Page {result.page_number}</span>
-                      <span className="mt-1 block text-sm leading-relaxed text-gray-600">{decodeSearchSnippet(result.snippet)}</span>
+                      <span className="mt-1 block text-sm leading-relaxed text-gray-700">
+                        <HighlightedSnippet snippet={result.snippet} query={query} />
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -2228,7 +2474,7 @@ function IssueInfoDrawer({
                   {issue.theme && (
                     <div className="mt-1.5 flex items-start gap-1.5">
                       <span aria-hidden className="mt-2 h-3.5 w-[2px] shrink-0 rounded-full bg-gradient-to-b from-gold-500 to-flame-500" />
-                      <p className="font-heading bg-gradient-to-r from-gold-700 to-flame-700 bg-clip-text pr-1 pt-0.5 text-sm font-bold leading-normal text-transparent">
+                      <p className="font-heading pr-1 pt-0.5 text-sm font-bold leading-normal text-flame-800">
                         {issue.theme}
                       </p>
                     </div>
@@ -2280,7 +2526,6 @@ function IssueInfoDrawer({
                 </div>
               )}
 
-              <ReportProblem issueId={issue.id} title={issue.title} page={currentPage} />
               <div className="mt-5 grid gap-2">
                 <button
                   type="button"
@@ -2340,6 +2585,8 @@ function IssueInfoDrawer({
                   </button>
                 </div>
               </div>
+
+              <ReportProblem issueId={issue.id} title={issue.title} page={currentPage} />
             </div>
           </motion.aside>
         </>

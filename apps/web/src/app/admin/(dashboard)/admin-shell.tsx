@@ -276,7 +276,7 @@ function AdminDashboardFrame({
             onClick={handleLogout}
             title={collapsed ? `Sign Out (${admin.email})` : undefined}
             className={cn(
-              'flex w-full items-center rounded-xl text-sm text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600',
+              'flex w-full items-center rounded-xl text-sm text-gray-600 transition-colors hover:bg-red-50 hover:text-red-700',
               collapsed ? 'h-10 justify-center px-2' : 'gap-2 px-4 py-2',
             )}
           >

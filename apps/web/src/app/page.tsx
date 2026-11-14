@@ -32,9 +32,9 @@ const fetchShelfIssues = unstable_cache(async (_window: string): Promise<{ issue
 const fetchCollectionSummary = unstable_cache(async (_window: string) => { void _window; return getPublicCollectionSummary(); },
   ['home-collection'], { revalidate: 30, tags: ['public-archive'] });
 
-async function fetchLatestSubscriberEditions(): Promise<ApiIssue[]> {
+const fetchLatestSubscriberEditions = unstable_cache(async (): Promise<ApiIssue[]> => {
   return listLatestEmbargoedIssues(4, 32);
-}
+}, ['home-subscriber-editions'], { revalidate: 30, tags: ['public-archive'] });
 
 interface CarouselData {
   magazines: ApiMagazine[];
@@ -46,7 +46,7 @@ interface CarouselData {
  * Feature the currently selected issue for each magazine. The schedule handles
  * the India-time release gate, persistent hides and optional manual selection.
  */
-async function fetchCarouselData(): Promise<CarouselData> {
+async function loadCarouselData(): Promise<CarouselData> {
   const [magazines, heroCatalogue, placements] = await Promise.all([
     listMagazines({ orderBy: 'created_at' }),
     getHeroScheduleAndCatalogue(),
@@ -66,6 +66,14 @@ async function fetchCarouselData(): Promise<CarouselData> {
   return { magazines, issues, pickerIssues };
 }
 
+const fetchCarouselData = unstable_cache(async (): Promise<CarouselData> => {
+  return loadCarouselData();
+}, ['home-carousel'], { revalidate: 30, tags: ['public-archive'] });
+
+const fetchCachedSiteSettings = unstable_cache(async () => {
+  return readSiteSettingsFromDb();
+}, ['home-site-settings'], { revalidate: 30, tags: ['public-archive'] });
+
 export default async function HomePage() {
   const cutoff = readableCutoffIssueMonth();
   const windowKey = `${cutoff.year}-${cutoff.month}`;
@@ -75,7 +83,7 @@ export default async function HomePage() {
     fetchCarouselData(),
     getPublicNavigationFromDb(),
     fetchCollectionSummary(windowKey),
-    readSiteSettingsFromDb(),
+    fetchCachedSiteSettings(),
   ]);
 
   return (

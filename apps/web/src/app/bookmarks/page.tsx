@@ -5,7 +5,7 @@ import { BookmarksLoading } from './bookmarks-loading';
 
 // Bookmarks live in localStorage, so the route renders its shell first and
 // the client requests only the saved issue IDs instead of the full archive.
-export const revalidate = 60;
+export const revalidate = 31_536_000;
 
 async function BookmarksPageContent() {
   const navigation = await getPublicNavigationFromDb();

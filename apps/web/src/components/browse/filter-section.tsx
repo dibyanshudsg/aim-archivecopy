@@ -107,7 +107,7 @@ export function FilterSection<T extends string | number>({
                 <li className="px-4 pt-1">
                   <button
                     onClick={() => setShowAll((s) => !s)}
-                    className="bg-gradient-to-r from-gold-600 to-flame-500 bg-clip-text text-xs font-medium text-transparent"
+                    className="text-xs font-semibold text-flame-700 hover:text-flame-800 hover:underline"
                   >
                     {showAll ? 'Show less' : `Show ${options.length - initialLimit} more`}
                   </button>

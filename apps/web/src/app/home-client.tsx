@@ -141,7 +141,7 @@ function ContinueReadingShelf({ featuredIds }: { featuredIds: string }) {
                   {entry.theme && (
                     <div className="mt-0.5 flex items-start gap-1.5">
                       <span aria-hidden className="mt-1.5 h-2.5 w-[2px] shrink-0 rounded-full bg-gradient-to-b from-gold-500 to-flame-500" />
-                      <p className="font-heading truncate bg-gradient-to-r from-gold-700 to-flame-700 bg-clip-text pr-1 pt-0.5 text-[12px] font-bold leading-normal text-transparent">
+                      <p className="font-heading truncate pr-1 pt-0.5 text-[12px] font-bold leading-normal text-flame-800">
                         {entry.theme}
                       </p>
                     </div>
@@ -242,10 +242,10 @@ export function HomeClient({
             {[
               { label: 'Publicly listed editions', value: collection.listed.toLocaleString() },
               { label: 'Readable now', value: collection.readable.toLocaleString() },
-              { label: 'Awaiting public release', value: (collection.listed - collection.readable).toLocaleString() },
+              { label: 'Print editions (5-yr embargo)', value: (collection.listed - collection.readable).toLocaleString() },
             ].map((stat) => (
               <div key={stat.label}>
-                <p className="font-heading bg-gradient-to-r from-gold-600 to-flame-500 bg-clip-text text-3xl font-bold text-transparent sm:text-4xl">
+                <p className="font-heading text-3xl font-bold text-flame-700 sm:text-4xl">
                   {stat.value}
                 </p>
                 <p className="mt-1 text-sm text-gray-500">{stat.label}</p>

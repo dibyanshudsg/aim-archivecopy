@@ -167,7 +167,7 @@ export function IssueDetailClient({ initialIssue, navigation, relatedSection }: 
       <main className="flex-1">
         <div className="border-b border-gray-100 px-6 py-3 lg:px-8">
           <div className="mx-auto flex w-full max-w-[1440px] items-center gap-2 text-sm text-gray-500">
-            <Link href="/browse" className="flex items-center gap-1 hover:text-flame-600">
+            <Link href="/browse" prefetch={true} className="flex items-center gap-1 hover:text-flame-600">
               <ArrowLeft className="h-3.5 w-3.5" />
               Browse
             </Link>
@@ -197,13 +197,13 @@ export function IssueDetailClient({ initialIssue, navigation, relatedSection }: 
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center px-8 py-16">
-                    <span className="bg-gradient-to-r from-gold-600 to-flame-500 bg-clip-text text-xs font-medium tracking-widest text-transparent uppercase">
+                    <span className="text-xs font-semibold tracking-widest text-flame-700 uppercase">
                       {issue.magazine.name}
                     </span>
                     <span className="font-heading mt-2 text-4xl font-bold text-gray-900">
                       {monthName}
                     </span>
-                    <span className="font-heading bg-gradient-to-r from-gold-600 to-flame-500 bg-clip-text text-5xl font-bold text-transparent">
+                    <span className="font-heading text-5xl font-bold text-flame-600">
                       {issue.year}
                     </span>
                     <span className="mt-2 text-sm text-gray-500">
@@ -226,7 +226,7 @@ export function IssueDetailClient({ initialIssue, navigation, relatedSection }: 
               {issue.theme && (
                 <div className="mt-3 flex items-start gap-2.5">
                   <span aria-hidden className="mt-1.5 h-7 w-1 shrink-0 rounded-full bg-gradient-to-b from-gold-500 to-flame-500" />
-                  <p lang={issue.magazine.language === 'hindi' ? 'hi' : undefined} className="font-heading bg-gradient-to-r from-gold-600 to-flame-600 bg-clip-text pr-1 text-xl font-semibold leading-tight text-transparent sm:text-2xl">
+                  <p lang={issue.magazine.language === 'hindi' ? 'hi' : undefined} className="font-heading pr-1 text-xl font-semibold leading-tight text-flame-700 sm:text-2xl">
                     {issue.theme}
                   </p>
                 </div>
@@ -235,10 +235,11 @@ export function IssueDetailClient({ initialIssue, navigation, relatedSection }: 
               <div className="mt-4 flex flex-wrap gap-2">
                 {[...issue.topics]
                   .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
-                  .map((topic) => (
+                  .map((topic, index) => (
                     <Link
-                      key={topic}
+                      key={`${topic}-${index}`}
                       href={`/browse?subject=${encodeURIComponent(topic)}`}
+                      prefetch={true}
                       className="rounded-full bg-gradient-to-r from-gold-50 to-flame-50 px-3 py-1 text-sm font-medium text-flame-700 transition-colors hover:from-gold-100 hover:to-flame-100"
                     >
                       {topic}
@@ -252,7 +253,7 @@ export function IssueDetailClient({ initialIssue, navigation, relatedSection }: 
                 </p>
               )}
 
-              <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <div className="mt-6 grid grid-cols-3 gap-2 sm:gap-3" aria-label="Issue metadata">
                 <MetaItem icon={Calendar} label="Published" value={`${monthName} ${issue.year}`} />
                 <MetaItem icon={FileText} label="Pages" value={pageCountValue} />
                 <MetaItem icon={HardDrive} label="Size" value={formatFileSize(issue.fileSizeBytes)} />
@@ -263,53 +264,52 @@ export function IssueDetailClient({ initialIssue, navigation, relatedSection }: 
                   liftLabel={issue.embargoLiftLabel}
                   magazineId={issue.magazine.id}
                   refreshing={unlockRefreshing}
+                  secondaryAction={
+                    <button
+                      onClick={() => toggle(issue.id)}
+                      className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors ${
+                        bookmarked
+                          ? 'border-red-200 bg-red-50 text-red-600'
+                          : 'border-flame-200/80 bg-white text-gray-700 hover:border-flame-300 hover:bg-flame-50/70 shadow-xs'
+                      }`}
+                    >
+                      <Heart className={`h-4 w-4 ${bookmarked ? 'fill-red-500 text-red-500' : 'text-gray-500'}`} />
+                      {bookmarked ? 'Bookmarked' : 'Bookmark for later'}
+                    </button>
+                  }
                 />
               ) : (
-                <div className="mt-8 flex flex-wrap gap-3">
+                <div className="mt-8 flex items-center gap-2 sm:gap-3">
                   <Link
                     href={`/read/${issue.id}`}
-                    className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-gold-500 to-flame-500 px-8 py-3 text-base font-semibold text-white shadow-[0_12px_30px_rgba(190,140,46,0.22)] transition-all hover:from-gold-600 hover:to-flame-600 hover:shadow-[0_16px_36px_rgba(229,86,31,0.24)]"
+                    prefetch={true}
+                    className="flex min-w-0 flex-1 sm:flex-initial items-center justify-center gap-1.5 sm:gap-2 rounded-xl bg-gradient-to-r from-gold-500 to-flame-500 px-3 sm:px-8 py-2.5 sm:py-3 text-xs xs:text-sm sm:text-base font-semibold text-white shadow-[0_12px_30px_rgba(190,140,46,0.22)] transition-all hover:from-gold-600 hover:to-flame-600 hover:shadow-[0_16px_36px_rgba(229,86,31,0.24)]"
                   >
-                    <BookOpen className="h-5 w-5" />
-                    Read Online
+                    <BookOpen className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+                    <span className="truncate">Read Online</span>
                   </Link>
 
                   <a
                     href={`/api/issues/${issue.id}/download`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 rounded-xl border border-gray-200 px-6 py-3 text-base font-semibold text-gray-700 transition-colors hover:border-flame-300 hover:bg-flame-50"
+                    className="flex shrink-0 items-center justify-center gap-1.5 sm:gap-2 rounded-xl border border-gray-200 px-3 sm:px-6 py-2.5 sm:py-3 text-xs xs:text-sm sm:text-base font-semibold text-gray-700 transition-colors hover:border-flame-300 hover:bg-flame-50"
                   >
-                    <Download className="h-5 w-5" />
-                    PDF
+                    <Download className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+                    <span>PDF</span>
                   </a>
 
                   <button
+                    type="button"
                     onClick={() => toggle(issue.id)}
-                    className={`flex items-center gap-2 rounded-xl border px-6 py-3 text-base font-semibold transition-colors ${
+                    className={`flex min-w-0 flex-1 sm:flex-initial items-center justify-center gap-1.5 sm:gap-2 rounded-xl border px-3 sm:px-6 py-2.5 sm:py-3 text-xs xs:text-sm sm:text-base font-semibold transition-colors cursor-pointer ${
                       bookmarked
                         ? 'border-red-200 bg-red-50 text-red-600'
                         : 'border-gray-200 text-gray-700 hover:border-flame-300 hover:bg-flame-50'
                     }`}
                   >
-                    <Heart className={`h-5 w-5 ${bookmarked ? 'fill-red-500' : ''}`} />
-                    {bookmarked ? 'Bookmarked' : 'Bookmark'}
-                  </button>
-                </div>
-              )}
-
-              {issue.isEmbargoed && (
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <button
-                    onClick={() => toggle(issue.id)}
-                    className={`flex items-center gap-2 rounded-xl border px-6 py-3 text-sm font-semibold transition-colors ${
-                      bookmarked
-                        ? 'border-red-200 bg-red-50 text-red-600'
-                        : 'border-gray-200 text-gray-700 hover:border-flame-300 hover:bg-flame-50'
-                    }`}
-                  >
-                    <Heart className={`h-4 w-4 ${bookmarked ? 'fill-red-500' : ''}`} />
-                    {bookmarked ? 'Bookmarked' : 'Bookmark for later'}
+                    <Heart className={`h-4 w-4 sm:h-5 sm:w-5 shrink-0 ${bookmarked ? 'fill-red-500 text-red-500' : ''}`} />
+                    <span className="truncate">{bookmarked ? 'Bookmarked' : 'Bookmark'}</span>
                   </button>
                 </div>
               )}
@@ -341,10 +341,14 @@ function MetaItem({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-4">
-      <Icon className="h-4 w-4 text-flame-500" />
-      <p className="mt-2 text-sm font-semibold text-gray-900">{value}</p>
-      <p className="text-xs text-gray-400">{label}</p>
+    <div className="flex min-w-0 items-center gap-2 sm:gap-3 rounded-xl border border-gold-200/70 bg-gradient-to-br from-white to-gold-50/25 px-2.5 py-2 sm:px-3.5 sm:py-2.5 shadow-xs transition-colors hover:border-gold-300">
+      <span className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg bg-flame-50 text-flame-700">
+        <Icon className="h-4 w-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs sm:text-sm font-bold leading-tight text-gray-900">{value}</p>
+        <p className="text-[10px] sm:text-[11px] font-medium leading-tight text-gray-500">{label}</p>
+      </div>
     </div>
   );
 }

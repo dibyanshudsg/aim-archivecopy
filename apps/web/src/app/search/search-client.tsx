@@ -15,25 +15,93 @@ import type { PublicNavigation } from '@/lib/navigation';
 
 interface SearchClientProps {
   navigation: PublicNavigation;
+  initialMagazines?: ApiMagazine[];
 }
 
-export function SearchClient({ navigation }: SearchClientProps) {
+export function SearchClient({ navigation, initialMagazines }: SearchClientProps) {
   const reduceMotion = useReducedMotion();
   const url = useSearchParams();
   const query = url.get('q') ?? '';
+  const [inputValue, setInputValue] = useState(query);
+  const inputRef = useRef<HTMLInputElement>(null);
   const magazineFilter = url.get('magazine_id') ?? 'all';
   const yearFrom = url.get('year_from') ?? '';
   const yearTo = url.get('year_to') ?? '';
   const availability = url.get('availability') === 'all' ? 'all' : url.get('availability') === 'subscriber' ? 'subscriber' : 'read';
+
+  const isMountedRef = useRef(false);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const update = (key: string, value: string, push = false) => {
+    if (typeof window === 'undefined' || !isMountedRef.current) return;
+    if (window.location.pathname !== '/search') return;
     const params = new URLSearchParams(window.location.search);
     if (value && !(key === 'magazine_id' && value === 'all')) params.set(key, value);
     else params.delete(key);
-    window.history[push ? 'pushState' : 'replaceState'](null, '', `/search${params.size ? `?${params}` : ''}`);
+    const nextUrl = `/search${params.size ? `?${params}` : ''}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    if (nextUrl === currentUrl) return;
+
+    // IMPORTANT: Preserve Next.js router history state so navigation never breaks or locks up
+    const currentState = typeof window.history.state === 'object' && window.history.state !== null
+      ? window.history.state
+      : {};
+
+    try {
+      if (push) {
+        window.history.pushState(currentState, '', nextUrl);
+      } else {
+        window.history.replaceState(currentState, '', nextUrl);
+      }
+    } catch {
+      /* ignore cross-origin or navigation race */
+    }
   };
-  const setQuery = (value: string) => update('q', value);
-  const [magazines, setMagazines] = useState<ApiMagazine[]>([]);
-  const [magazinesLoading, setMagazinesLoading] = useState(true);
+
+  // Sync external search params changes (e.g. popstate / suggestions click) to local input
+  useEffect(() => {
+    setInputValue(url.get('q') ?? '');
+  }, [url]);
+
+  // Debounce syncing local input to URL params without causing input lag
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!isMountedRef.current || window.location.pathname !== '/search') return;
+      const currentUrlQ = url.get('q') ?? '';
+      if (inputValue.trim() !== currentUrlQ) {
+        update('q', inputValue.trim());
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [inputValue, url]);
+
+  // Keyboard shortcut (/ or Cmd/Ctrl+K) to focus search input
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        (e.key === '/' || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k')) &&
+        document.activeElement?.tagName !== 'INPUT' &&
+        document.activeElement?.tagName !== 'TEXTAREA'
+      ) {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const setQuery = (value: string) => {
+    setInputValue(value);
+    update('q', value);
+  };
+  const [magazines, setMagazines] = useState<ApiMagazine[]>(initialMagazines ?? []);
+  const [magazinesLoading, setMagazinesLoading] = useState(!initialMagazines || initialMagazines.length === 0);
   const [response, setResponse] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +112,7 @@ export function SearchClient({ navigation }: SearchClientProps) {
   const hasRequestedSearchRef = useRef(false);
 
   useEffect(() => {
+    if (initialMagazines && initialMagazines.length > 0) return;
     const controller = new AbortController();
     fetchMagazines(controller.signal)
       .then(setMagazines)
@@ -54,7 +123,7 @@ export function SearchClient({ navigation }: SearchClientProps) {
         if (!controller.signal.aborted) setMagazinesLoading(false);
       });
     return () => controller.abort();
-  }, []);
+  }, [initialMagazines]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -117,34 +186,51 @@ export function SearchClient({ navigation }: SearchClientProps) {
             <div className="relative mt-8">
               <SearchIcon className="absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-gray-400" />
               <input
+                ref={inputRef}
                 type="text"
                 aria-label="Search the archive"
                 maxLength={500}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
                 placeholder="Search a title, theme, topic, or phrase…"
-                className="w-full rounded-2xl border border-gray-200 bg-white py-4 pr-14 pl-12 text-base text-gray-900 shadow-sm transition-colors placeholder:text-gray-500 focus:border-flame-300 focus:outline-none focus:ring-2 focus:ring-flame-100"
+                className="w-full rounded-2xl border border-gray-200 bg-white py-4 pr-16 pl-12 text-base text-gray-900 shadow-sm transition-colors placeholder:text-gray-500 focus:border-flame-300 focus:outline-none focus:ring-2 focus:ring-flame-100"
               />
-              {query && (
+              {inputValue ? (
                 <button
-                  onClick={() => setQuery('')}
+                  onClick={() => {
+                    setInputValue('');
+                    update('q', '');
+                  }}
                   aria-label="Clear search"
-                  className="absolute top-1/2 right-1 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-gray-600 hover:bg-flame-50"
+                  className="absolute top-1/2 right-2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg text-gray-600 hover:bg-flame-50"
                 >
                   <X className="h-5 w-5" />
                 </button>
+              ) : (
+                <div className="pointer-events-none absolute top-1/2 right-4 hidden -translate-y-1/2 items-center gap-1 sm:flex">
+                  <kbd className="rounded border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-400">
+                    /
+                  </kbd>
+                </div>
               )}
             </div>
 
             <fieldset className="mt-5 flex flex-wrap gap-2">
               <legend className="mb-2 text-sm font-semibold text-gray-700">Availability</legend>
-              {[['read', 'Read now'], ['all', 'All editions'], ['subscriber', 'Awaiting public release']].map(([value, label]) => (
+              {[
+                ['read', 'Read now (Public)'],
+                ['all', 'All editions'],
+                ['subscriber', 'Print editions (5-yr embargo)'],
+              ].map(([value, label]) => (
                 <label key={value} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${availability === value ? 'border-flame-400 bg-flame-50 text-flame-800' : 'border-gray-200 bg-white text-gray-700'}`}>
                   <input type="radio" name="availability" value={value} checked={availability === value} onChange={() => update('availability', value, true)} className="accent-orange-700" />
                   {label}
                 </label>
               ))}
             </fieldset>
+            <p className="mt-1 text-xs text-gray-500">
+              Editions from the last 5 years are reserved for active subscribers before entering the public archive.
+            </p>
 
             <div className="mt-4 flex items-center justify-between">
               <button
@@ -247,7 +333,7 @@ export function SearchClient({ navigation }: SearchClientProps) {
             <div className="py-20 text-center">
               <p className="text-lg text-gray-700">No matches for &ldquo;{query}&rdquo; in this selection.</p>
               <p className="mt-2 text-sm text-gray-600">Try another phrase or change the filters. Not all editions have searchable page text yet.</p>
-              {availability === 'read' && <button onClick={() => update('availability', 'all', true)} className="mt-4 rounded-lg border border-flame-300 px-4 py-3 text-sm font-semibold text-flame-800">Include editions awaiting public release</button>}
+              {availability === 'read' && <button onClick={() => update('availability', 'all', true)} className="mt-4 rounded-lg border border-flame-300 px-4 py-3 text-sm font-semibold text-flame-800">Include subscriber editions</button>}
               <Link href="/browse?availability=read" className="mt-4 block text-sm font-semibold text-flame-800 underline">Browse readable editions</Link>
             </div>
           ) : response ? (

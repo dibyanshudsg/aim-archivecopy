@@ -468,7 +468,7 @@ export function TagsInput({
                           disabled={isPending}
                           aria-label={`Delete ${topic.name}`}
                           title="Delete from all issues"
-                          className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 hover:bg-red-50 hover:text-red-600"
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-gray-500 hover:bg-red-50 hover:text-red-700"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>

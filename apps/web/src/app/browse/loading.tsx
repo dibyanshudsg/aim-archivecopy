@@ -4,7 +4,7 @@ import { BookOpen, Calendar, CheckSquare, ChevronDown, Filter, Layers3, LayoutGr
 
 const loadingAvailability = [
   { label: 'Read now', helper: 'Public PDFs', Icon: BookOpen },
-  { label: 'Awaiting public release', helper: 'Print circulation', Icon: LockKeyhole },
+  { label: 'Subscriber editions', helper: 'Recent 5 years', Icon: LockKeyhole },
   { label: 'All editions', helper: 'Mixed view', Icon: Layers3 },
 ];
 

@@ -34,7 +34,7 @@ export function Footer({ navigation }: { navigation?: PublicNavigation }) {
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
           <div className="hidden sm:col-span-2 sm:block lg:col-span-1">
-            <Link href="/" className="flex items-center gap-3">
+            <Link href="/" prefetch={true} className="flex items-center gap-3">
               <Image src="/api/brand/logo" unoptimized alt="AIM Archive" width={40} height={40} className="rounded-lg object-cover" />
               <span className="font-heading text-lg font-bold text-gray-900">AIM Archive</span>
             </Link>
@@ -124,7 +124,7 @@ function FooterNavLink({ item,compact=false }: { item: NavigationItem;compact?:b
   }
 
   return (
-    <Link href={item.href} className={className}>
+    <Link href={item.href} prefetch={true} className={className}>
       {item.label}
     </Link>
   );

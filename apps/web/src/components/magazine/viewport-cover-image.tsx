@@ -32,7 +32,7 @@ export function ViewportCoverImage({ priority, ...props }: ImageProps) {
     <span ref={containerRef} className="absolute inset-0 overflow-hidden bg-gradient-to-br from-gold-50 to-flame-50">
       {!loaded && <span aria-hidden="true" className="cover-shimmer absolute inset-0" />}
       {nearViewport && <ArchiveImage {...props} priority={priority} className={props.className}
-        style={{ ...props.style, opacity: loaded ? 1 : 0, transition: 'opacity 500ms ease, transform 500ms ease' }}
+        style={{ ...props.style, opacity: loaded ? 1 : 0, transition: 'opacity 150ms ease, transform 300ms ease' }}
         onLoad={(event) => { setLoaded(true); props.onLoad?.(event); }}
         onError={(event) => { setLoaded(true); props.onError?.(event); }} />}
     </span>
