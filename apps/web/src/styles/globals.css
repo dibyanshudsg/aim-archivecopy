@@ -282,11 +282,11 @@ html::-webkit-scrollbar-button,
 
 .scenic-artboard-phone {
   left: var(--hero-focal-x-phone, 50%);
-  top: var(--hero-focal-y-phone, 82%);
+  top: var(--hero-focal-y-phone, 62%);
   width: max(100cqw, 56.28cqh);
   height: max(100cqh, 177.68cqw);
-  translate: var(--hero-focal-x-phone-negative, -50%) var(--hero-focal-y-phone-negative, -82%);
-  scale: 1.04;
+  translate: var(--hero-focal-x-phone-negative, -50%) var(--hero-focal-y-phone-negative, -62%);
+  scale: 1.02;
   transform-origin: center center;
 }
 

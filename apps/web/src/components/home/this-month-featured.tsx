@@ -1275,13 +1275,12 @@ function MobileScenicHero({ issue, eyebrow, monthName, bookmarked, onBookmark, o
     '--hero-focal-x-phone-negative':`${-placement.focalX}%`,'--hero-focal-y-phone-negative':`${-placement.focalY}%`,
   } as React.CSSProperties;
   return <div data-hero-swipe className="flex flex-col bg-white md:hidden">
-    <div style={sceneVariables} className="scenic-phone-scene relative h-[440px] xs:h-[480px] sm:h-[520px] overflow-hidden">
+    <div style={sceneVariables} className="scenic-phone-scene relative h-[520px] xs:h-[560px] sm:h-[600px] overflow-hidden">
       <div className={cn('scenic-artboard scenic-artboard-phone',animateOnMount&&sceneReady&&'scenic-artboard-enter')}>
         <ScenicBackground src={aimOctoberPhoneHero} media="(max-width: 767px)" sizes="100vw" className="object-cover" onReady={()=>{if(!backgroundSrc){setSceneReady(true);onReady();}}} />
         {backgroundSrc && (
           <ScenicBackground key={backgroundSrc} src={backgroundSrc} media="(max-width: 767px)" sizes="100vw" className="object-cover transition-opacity duration-300" animateEntrance={false} onReady={()=>{setSceneReady(true);onReady();}} />
         )}
-        <div className="absolute inset-x-0 bottom-0 h-[24%] bg-gradient-to-b from-transparent via-white/65 to-white" aria-hidden="true" />
         <button
           type="button"
           onClick={onBookOpen}
@@ -1289,11 +1288,11 @@ function MobileScenicHero({ issue, eyebrow, monthName, bookmarked, onBookmark, o
           aria-label={issue.pdf_url?`Read ${issue.title}`:`${issue.title} is not yet readable`}
           style={{
             left: `${placement.bookX}%`,
-            bottom: `${Math.min(100 - placement.baselineY, 30)}%`,
-            height: `${Math.min(54 * (placement.bookScale / 100), 58)}%`,
+            bottom: `${Math.max(100 - placement.baselineY, 22)}%`,
+            height: `${Math.min(36 * (placement.bookScale / 100), 40)}%`,
             transform: 'translateX(-50%)',
           }}
-          className="scenic-book-stage absolute z-[3] aspect-[2/3] max-w-[50%] disabled:cursor-not-allowed"
+          className="scenic-book-stage absolute z-[3] aspect-[2/3] max-w-[42%] disabled:cursor-not-allowed"
         >
           <span className="scenic-book-shadow" aria-hidden="true" />
           <span className="scenic-book block h-full w-full" style={{ '--book-spine-color': coverPalette.dominant, '--book-spine-foreground': coverPalette.foreground } as React.CSSProperties}>
@@ -1307,6 +1306,7 @@ function MobileScenicHero({ issue, eyebrow, monthName, bookmarked, onBookmark, o
           </span>
         </button>
       </div>
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[4] h-20 sm:h-24 bg-gradient-to-b from-transparent via-white/45 to-white" aria-hidden="true" />
     </div>
     <div className="shrink-0 bg-white px-5 py-3.5 sm:px-7 sm:py-5">
       <p className="text-[10px] font-semibold uppercase tracking-[.18em] transition-colors duration-300" style={{color:issueColours.body}}>{eyebrow}</p>
