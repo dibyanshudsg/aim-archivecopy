@@ -907,9 +907,9 @@ function BrowseContent({
             onClick={handleScrollToTop}
             aria-label="Scroll to top"
             title="Scroll to top"
-            className="fixed right-6 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-r from-gold-500 to-flame-500 text-white shadow-[0_12px_30px_rgba(190,140,46,0.28)] ring-1 ring-flame-600/20 transition-colors hover:from-gold-600 hover:to-flame-600 focus-visible:ring-2 focus-visible:ring-flame-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+            className="fixed right-4 sm:right-6 md:right-8 bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:bottom-6 md:bottom-8 z-40 flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-gradient-to-r from-gold-500 to-flame-500 text-white shadow-[0_12px_30px_rgba(190,140,46,0.28)] ring-1 ring-flame-600/20 transition-colors hover:from-gold-600 hover:to-flame-600 focus-visible:ring-2 focus-visible:ring-flame-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
           >
-            <ArrowUp className="h-6 w-6" />
+            <ArrowUp className="h-5 w-5 sm:h-6 sm:w-6" />
           </motion.button>
         )}
       </AnimatePresence>

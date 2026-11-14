@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -171,6 +171,54 @@ function ContinueReadingShelf({ featuredIds }: { featuredIds: string }) {
   );
 }
 
+function AutoFitQuote({ quote, attribution }: { quote: string; attribution: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLHeadingElement>(null);
+  const [fontSize, setFontSize] = useState<number | null>(null);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    const text = textRef.current;
+    if (!container || !text) return;
+
+    const adjust = () => {
+      text.style.fontSize = '40px';
+      const naturalWidth = text.scrollWidth;
+      const availableWidth = container.clientWidth;
+      if (naturalWidth > 0 && availableWidth > 0) {
+        const target = (availableWidth / naturalWidth) * 40;
+        const clamped = Math.min(68, Math.max(18, target * 0.98));
+        setFontSize(clamped);
+      }
+    };
+
+    adjust();
+    window.addEventListener('resize', adjust);
+    if (typeof document !== 'undefined' && document.fonts) {
+      document.fonts.ready.then(adjust);
+    }
+    return () => window.removeEventListener('resize', adjust);
+  }, [quote]);
+
+  return (
+    <div ref={containerRef} className="w-full">
+      <h2
+        ref={textRef}
+        id="archive-intro-title"
+        className="font-cursive font-bold text-flame-600 whitespace-nowrap text-center leading-[0.95]"
+        style={{
+          fontSize: fontSize ? `${fontSize}px` : 'clamp(1.15rem, 5.8vw, 4.25rem)',
+        }}
+      >
+        “{quote}”
+      </h2>
+      <p className="font-heading mt-2 text-right text-xs tracking-wide text-flame-800 sm:text-sm md:text-base">
+        — {attribution}
+      </p>
+    </div>
+  );
+}
+
 export function HomeClient({
   recentIssues,
   shelfYears,
@@ -197,21 +245,17 @@ export function HomeClient({
             onPreviewChange={setHeroPreviewOpen}
           />
 
-          <section className="mx-auto mt-8 w-full max-w-[1440px] border-y border-gold-200/70 px-2 py-6 sm:mt-16 sm:px-6 sm:py-10 lg:px-10" aria-labelledby="archive-intro-title">
+          <section className="mx-auto mt-8 w-full max-w-[1440px] border-y border-gold-200/70 px-4 py-6 sm:mt-16 sm:px-6 sm:py-10 lg:px-10" aria-labelledby="archive-intro-title">
             <div className="relative mx-auto flex w-full max-w-5xl flex-col items-center">
               <div className="flex justify-center sm:absolute sm:left-0 sm:top-1/2 sm:-translate-y-1/2" aria-hidden="true">
                 <Flame className="scale-[0.8] sm:scale-[0.9]" />
               </div>
-              <div className="min-w-0 max-w-4xl text-center sm:px-20">
-                <div className="mx-auto w-fit max-w-full">
-                  <h2 id="archive-intro-title" className="font-cursive text-[clamp(2.5rem,9vw,4.25rem)] font-bold leading-[0.95] text-flame-600">
-                    “{siteSettings.archive_intro_quote}”
-                  </h2>
-                  <p className="font-heading mt-2 text-right text-sm tracking-wide text-flame-800 sm:text-base">
-                    — {siteSettings.archive_intro_attribution}
-                  </p>
-                </div>
-                <p className="mt-4 max-w-4xl text-base leading-relaxed text-gray-700 sm:text-lg">
+              <div className="w-full min-w-0 max-w-4xl text-center sm:px-20">
+                <AutoFitQuote
+                  quote={siteSettings.archive_intro_quote}
+                  attribution={siteSettings.archive_intro_attribution}
+                />
+                <p className="mt-5 max-w-4xl text-base leading-relaxed text-gray-700 sm:text-lg text-justify [text-align-last:center] hyphens-auto">
                   {siteSettings.archive_intro_description}
                 </p>
               </div>

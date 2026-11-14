@@ -150,7 +150,7 @@ function ScenicBackground({ src, media, sizes, className, animateEntrance = fals
     alt: '',
     fill: true,
     sizes,
-    unoptimized: typeof src === 'string' && src.startsWith('/api/admin/'),
+    unoptimized: typeof src === 'string' && (src.startsWith('/api/') || src.startsWith('http')),
   });
 
   return (
@@ -297,6 +297,20 @@ export function ThisMonthFeatured({
   useEffect(() => {
     onPreviewChange?.(previewOpen);
   }, [onPreviewChange, previewOpen]);
+
+  useEffect(() => {
+    // Preload hero backgrounds for all carousel issues so switching magazine pills is instant
+    for (const item of issues) {
+      if (item.hero?.mobileUrl && typeof window !== 'undefined') {
+        const img = new window.Image();
+        img.src = item.hero.mobileUrl;
+      }
+      if (item.hero?.desktopUrl && typeof window !== 'undefined') {
+        const img = new window.Image();
+        img.src = item.hero.desktopUrl;
+      }
+    }
+  }, [issues]);
 
   // Start each filtered set at its newest issue.
   useEffect(() => {
@@ -1240,7 +1254,10 @@ function MobileScenicHero({ issue, eyebrow, monthName, bookmarked, onBookmark, o
   return <div data-hero-swipe className="bg-white md:hidden">
     <div style={sceneVariables} className="scenic-phone-scene relative h-[720px] overflow-hidden">
       <div className={cn('scenic-artboard scenic-artboard-phone',animateOnMount&&sceneReady&&'scenic-artboard-enter')}>
-        <ScenicBackground src={backgroundSrc ?? aimOctoberPhoneHero} media="(max-width: 767px)" sizes="100vw" className="object-cover" animateEntrance={animateEntrance} onReady={()=>{setSceneReady(true);onReady();}} />
+        <ScenicBackground src={aimOctoberPhoneHero} media="(max-width: 767px)" sizes="100vw" className="object-cover" onReady={()=>{if(!backgroundSrc){setSceneReady(true);onReady();}}} />
+        {backgroundSrc && (
+          <ScenicBackground key={backgroundSrc} src={backgroundSrc} media="(max-width: 767px)" sizes="100vw" className="object-cover transition-opacity duration-300" animateEntrance={false} onReady={()=>{setSceneReady(true);onReady();}} />
+        )}
         <div className="absolute inset-x-0 bottom-0 h-[24%] bg-gradient-to-b from-transparent via-white/65 to-white" aria-hidden="true" />
         <button type="button" onClick={onBookOpen} disabled={!issue.pdf_url} aria-label={issue.pdf_url?`Read ${issue.title}`:`${issue.title} is not yet readable`} style={{left:`${placement.bookX}%`,bottom:`${100-placement.baselineY}%`,width:`${52*placement.bookScale/100}%`,transform:'translateX(-50%)'}} className="scenic-book-stage absolute z-[3] aspect-[2/3] disabled:cursor-not-allowed">
           <span className="scenic-book-shadow" aria-hidden="true" />
@@ -1342,16 +1359,31 @@ export function DesktopScenicHero({
     <div data-hero-swipe style={sceneVariables} className={cn('scenic-hero relative hidden overflow-hidden md:block', compact ? 'min-h-[480px]' : 'min-h-[max(720px,56.28vw)]')}>
       <div className={cn('scenic-artboard scenic-artboard-landscape',animateOnMount&&backgroundReady&&'scenic-artboard-enter')}>
         <ScenicBackground
-          src={backgroundSrc}
+          src="/aim-oct-2026-hero.png"
           media="(min-width: 768px)"
           sizes="(min-width: 1024px) 1440px, 100vw"
           className="scenic-hero-background object-cover"
-          animateEntrance={animateEntrance}
           onReady={() => {
-            setBackgroundReady(true);
-            onReady();
+            if (!backgroundSrc || backgroundSrc === '/aim-oct-2026-hero.png') {
+              setBackgroundReady(true);
+              onReady();
+            }
           }}
         />
+        {backgroundSrc && backgroundSrc !== '/aim-oct-2026-hero.png' && (
+          <ScenicBackground
+            key={backgroundSrc}
+            src={backgroundSrc}
+            media="(min-width: 768px)"
+            sizes="(min-width: 1024px) 1440px, 100vw"
+            className="scenic-hero-background object-cover transition-opacity duration-300"
+            animateEntrance={false}
+            onReady={() => {
+              setBackgroundReady(true);
+              onReady();
+            }}
+          />
+        )}
         <button
           ref={bookRef}
           type="button"
