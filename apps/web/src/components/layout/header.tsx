@@ -150,8 +150,14 @@ export function Header({
       onFocusCapture={()=>{if(autoHideOnHome&&!suppressed)setScrollHeaderVisible(true);}}
       className={cn(
         'top-0 z-50 border-b border-flame-100 bg-white shadow-sm',
+        suppressed && '!hidden !pointer-events-none !-translate-y-[calc(100%+24px)] !opacity-0 !shadow-none',
         autoHideOnHome
-          ? cn('fixed inset-x-0 transform-gpu transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:duration-150',scrollHeaderVisible&&!suppressed?'translate-y-0':'pointer-events-none -translate-y-full')
+          ? cn(
+              'fixed inset-x-0 transform-gpu transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:duration-150',
+              scrollHeaderVisible && !suppressed
+                ? 'translate-y-0 opacity-100 visible border-flame-100'
+                : 'pointer-events-none -translate-y-full opacity-0 shadow-none invisible border-transparent',
+            )
           : 'relative sticky',
       )}
     >

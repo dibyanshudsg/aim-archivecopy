@@ -18,7 +18,7 @@ import { Footer } from '@/components/layout/footer';
 import { fetchIssue, normalizeIssue, type ApiIssue } from '@/lib/api';
 import { LANGUAGE_NAMES, MONTH_NAMES } from '@aim-archive/shared';
 import type { MonthIndex, Language } from '@aim-archive/shared';
-import { formatFileSize } from '@/lib/utils';
+import { cn, formatFileSize } from '@/lib/utils';
 import { useBookmarks } from '@/lib/bookmarks-store';
 import { AccessNotice } from '@/components/magazine/access-notice';
 import type { PublicNavigation } from '@/lib/navigation';
@@ -253,8 +253,8 @@ export function IssueDetailClient({ initialIssue, navigation, relatedSection }: 
                 </p>
               )}
 
-              <div className="mt-6 grid grid-cols-3 gap-2 sm:gap-3" aria-label="Issue metadata">
-                <MetaItem icon={Calendar} label="Published" value={`${monthName} ${issue.year}`} />
+              <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3" aria-label="Issue metadata">
+                <MetaItem className="hidden sm:flex" icon={Calendar} label="Published" value={`${monthName} ${issue.year}`} />
                 <MetaItem icon={FileText} label="Pages" value={pageCountValue} />
                 <MetaItem icon={HardDrive} label="Size" value={formatFileSize(issue.fileSizeBytes)} />
               </div>
@@ -279,11 +279,11 @@ export function IssueDetailClient({ initialIssue, navigation, relatedSection }: 
                   }
                 />
               ) : (
-                <div className="mt-8 flex items-center gap-2 sm:gap-3">
+                <div className="mt-8 flex items-center gap-2.5 sm:gap-3">
                   <Link
                     href={`/read/${issue.id}`}
                     prefetch={true}
-                    className="flex min-w-0 flex-1 sm:flex-initial items-center justify-center gap-1.5 sm:gap-2 rounded-xl bg-gradient-to-r from-gold-500 to-flame-500 px-3 sm:px-8 py-2.5 sm:py-3 text-xs xs:text-sm sm:text-base font-semibold text-white shadow-[0_12px_30px_rgba(190,140,46,0.22)] transition-all hover:from-gold-600 hover:to-flame-600 hover:shadow-[0_16px_36px_rgba(229,86,31,0.24)]"
+                    className="flex min-w-0 flex-1 sm:flex-initial items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-gold-500 to-flame-500 px-5 sm:px-8 py-3 text-sm sm:text-base font-semibold text-white shadow-[0_12px_30px_rgba(190,140,46,0.22)] transition-all hover:from-gold-600 hover:to-flame-600 hover:shadow-[0_16px_36px_rgba(229,86,31,0.24)]"
                   >
                     <BookOpen className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
                     <span className="truncate">Read Online</span>
@@ -293,7 +293,7 @@ export function IssueDetailClient({ initialIssue, navigation, relatedSection }: 
                     href={`/api/issues/${issue.id}/download`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex shrink-0 items-center justify-center gap-1.5 sm:gap-2 rounded-xl border border-gray-200 px-3 sm:px-6 py-2.5 sm:py-3 text-xs xs:text-sm sm:text-base font-semibold text-gray-700 transition-colors hover:border-flame-300 hover:bg-flame-50"
+                    className="flex shrink-0 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 sm:px-6 py-3 text-sm sm:text-base font-semibold text-gray-700 transition-colors hover:border-flame-300 hover:bg-flame-50"
                   >
                     <Download className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
                     <span>PDF</span>
@@ -302,14 +302,15 @@ export function IssueDetailClient({ initialIssue, navigation, relatedSection }: 
                   <button
                     type="button"
                     onClick={() => toggle(issue.id)}
-                    className={`flex min-w-0 flex-1 sm:flex-initial items-center justify-center gap-1.5 sm:gap-2 rounded-xl border px-3 sm:px-6 py-2.5 sm:py-3 text-xs xs:text-sm sm:text-base font-semibold transition-colors cursor-pointer ${
+                    aria-label={bookmarked ? 'Remove bookmark' : 'Save bookmark'}
+                    title={bookmarked ? 'Remove bookmark' : 'Save bookmark'}
+                    className={`flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl border transition-colors cursor-pointer ${
                       bookmarked
                         ? 'border-red-200 bg-red-50 text-red-600'
-                        : 'border-gray-200 text-gray-700 hover:border-flame-300 hover:bg-flame-50'
+                        : 'border-gray-200 bg-white text-gray-700 hover:border-flame-300 hover:bg-flame-50'
                     }`}
                   >
-                    <Heart className={`h-4 w-4 sm:h-5 sm:w-5 shrink-0 ${bookmarked ? 'fill-red-500 text-red-500' : ''}`} />
-                    <span className="truncate">{bookmarked ? 'Bookmarked' : 'Bookmark'}</span>
+                    <Heart className={`h-5 w-5 shrink-0 ${bookmarked ? 'fill-red-500 text-red-500' : 'text-gray-500'}`} />
                   </button>
                 </div>
               )}
@@ -335,13 +336,15 @@ function MetaItem({
   icon: Icon,
   label,
   value,
+  className,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
+  className?: string;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-2 sm:gap-3 rounded-xl border border-gold-200/70 bg-gradient-to-br from-white to-gold-50/25 px-2.5 py-2 sm:px-3.5 sm:py-2.5 shadow-xs transition-colors hover:border-gold-300">
+    <div className={cn("flex min-w-0 items-center gap-2 sm:gap-3 rounded-xl border border-gold-200/70 bg-gradient-to-br from-white to-gold-50/25 px-2.5 py-2 sm:px-3.5 sm:py-2.5 shadow-xs transition-colors hover:border-gold-300", className)}>
       <span className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg bg-flame-50 text-flame-700">
         <Icon className="h-4 w-4" />
       </span>

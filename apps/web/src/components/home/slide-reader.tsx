@@ -157,23 +157,28 @@ export default function SlideReader({
       ? Math.max(2, Math.min(3, window.devicePixelRatio || 1))
       : 2;
 
-  // Desktop & mobile default to 1.0 (100% zoom).
-  const ZOOM_STEPS = [0.75, 1, 1.25, 1.5, 1.75, 2];
+  // Desktop & mobile default to 1.0 (100% zoom) with 10% incremental steps.
   const [zoom, setZoom] = useState(1);
 
   function zoomIn() {
-    const i = ZOOM_STEPS.indexOf(zoom);
-    if (i >= 0 && i < ZOOM_STEPS.length - 1) setZoom(ZOOM_STEPS[i + 1]);
+    setZoom((z) => {
+      const pct = Math.round(z * 100);
+      const next = Math.min(200, Math.floor(pct / 10) * 10 + 10);
+      return Math.round(next) / 100;
+    });
   }
   function zoomOut() {
-    const i = ZOOM_STEPS.indexOf(zoom);
-    if (i > 0) setZoom(ZOOM_STEPS[i - 1]);
+    setZoom((z) => {
+      const pct = Math.round(z * 100);
+      const prev = Math.max(50, Math.ceil(pct / 10) * 10 - 10);
+      return Math.round(prev) / 100;
+    });
   }
   function zoomReset() {
     setZoom(1);
   }
-  const canZoomIn = zoom < ZOOM_STEPS[ZOOM_STEPS.length - 1];
-  const canZoomOut = zoom > ZOOM_STEPS[0];
+  const canZoomIn = zoom < 2;
+  const canZoomOut = zoom > 0.5;
   const renderedPageWidth = perPageWidth ? Math.round(perPageWidth * zoom) : 0;
 
   // Reset page when switching issue
@@ -239,7 +244,7 @@ export default function SlideReader({
       {/* Top Header Toolbar */}
       <header className="sticky top-0 z-40 flex w-full items-center justify-between gap-2 border-b border-flame-100/80 bg-white/95 px-3 py-2 shadow-xs backdrop-blur-xs sm:px-6 sm:py-2.5">
         {/* Left: Back + Name card */}
-        <div className="flex min-w-0 items-center gap-1.5 sm:gap-2.5">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2.5 mr-2">
           {onBack && (
             <button
               type="button"
@@ -258,7 +263,7 @@ export default function SlideReader({
               type="button"
               onClick={onOpenInfo}
               aria-label={`Information about ${fallbackTitle}`}
-              className="group flex min-w-0 max-w-[130px] xs:max-w-[170px] sm:max-w-[230px] lg:max-w-none shrink items-center gap-2 rounded-xl border border-flame-100/90 bg-gradient-to-br from-white to-flame-50/40 p-1.5 text-left shadow-xs transition-colors hover:border-flame-200 hover:bg-flame-50/60 cursor-pointer sm:px-2.5"
+              className="group flex min-w-0 flex-1 sm:flex-initial sm:max-w-[280px] lg:max-w-md shrink items-center gap-2 rounded-xl border border-flame-100/90 bg-gradient-to-br from-white to-flame-50/40 p-1.5 text-left shadow-xs transition-colors hover:border-flame-200 hover:bg-flame-50/60 cursor-pointer sm:px-2.5"
             >
               {fallbackCoverUrl && (
                 <img
@@ -279,10 +284,10 @@ export default function SlideReader({
           )}
         </div>
 
-        {/* Right: Zoom controls + Read Issue CTA */}
+        {/* Right: Zoom controls (desktop/tablet only) + Read Issue CTA */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
           {!loadError && (
-            <div className="flex items-center gap-0.5 rounded-xl border border-flame-200/70 bg-white p-0.5 shadow-xs">
+            <div className="hidden sm:flex items-center gap-0.5 rounded-xl border border-flame-200/70 bg-white p-0.5 shadow-xs">
               <button
                 type="button"
                 onClick={zoomOut}

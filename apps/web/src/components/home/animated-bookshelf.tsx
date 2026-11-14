@@ -1337,7 +1337,7 @@ export function AnimatedBookshelf({ issues: suppliedIssues, years, archiveGrowth
                             transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 430, damping: 34 }}
                           />
                         )}
-                        {option.label==='All India Magazine'?<><span className="hidden sm:inline">All India Magazine</span><span className="sm:hidden">All India</span></>:option.label}
+                        {option.label==='All India Magazine'?<><span className="hidden sm:inline">All India Magazine</span><span className="sm:hidden">AIM</span></>:option.label}
                       </button>
                     );
                   })}

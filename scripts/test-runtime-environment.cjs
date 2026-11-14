@@ -22,6 +22,7 @@ walk(path.join(root, 'apps/web/src'));
 for (const file of ['apps/web/next.config.ts', 'scripts/dev-web.cjs']) inspect(path.join(root, file));
 names.delete('NODE_ENV'); // Set by Next/pnpm, not a user secret or example setting.
 names.delete('VERCEL'); // Set by Vercel itself, not a user-configured variable.
+names.delete('VERCEL_ENV'); // Set by Vercel itself, not a user-configured variable.
 for (const name of names) {
   assert.ok(exampleNames.has(name), `Missing example: ${name}`);
   assert.ok(turbo.globalEnv.includes(name), `Missing strict-mode propagation: ${name}`);

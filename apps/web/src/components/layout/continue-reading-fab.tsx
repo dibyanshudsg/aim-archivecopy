@@ -102,7 +102,11 @@ export function ContinueReadingFab({ inline = false }: { inline?: boolean }) {
         title="Continue reading"
         className={inline
           ? 'relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-flame-200 bg-white text-flame-700 shadow-sm hover:border-flame-300 hover:bg-flame-50 focus-visible:ring-2 focus-visible:ring-flame-500 md:hidden'
-          : 'fixed right-6 bottom-6 z-40 hidden h-14 w-14 items-center justify-center rounded-full bg-gradient-to-r from-gold-500 to-flame-500 text-white shadow-lg focus-visible:ring-2 focus-visible:ring-flame-700 md:flex'}
+          : `fixed right-4 sm:right-6 md:right-8 z-40 flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-gradient-to-r from-gold-500 to-flame-500 text-white shadow-lg ring-1 ring-flame-600/20 focus-visible:ring-2 focus-visible:ring-flame-700 ${
+              pathname === '/browse'
+                ? 'bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] sm:bottom-24'
+                : 'bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:bottom-6 md:bottom-8'
+            }`}
       >
         <BookOpenText className="h-6 w-6" />
         {count > 0 && (
@@ -123,7 +127,11 @@ export function ContinueReadingFab({ inline = false }: { inline?: boolean }) {
             transition={{ type: 'spring', stiffness: 400, damping: 32 }}
             className={inline
               ? 'absolute top-full right-2 z-50 flex w-[min(380px,calc(100vw-1rem))] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl md:hidden'
-              : 'fixed right-6 bottom-24 z-40 hidden w-[min(380px,calc(100vw-3rem))] flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl md:flex'}
+              : `fixed right-4 sm:right-6 md:right-8 z-50 flex w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl ${
+                  pathname === '/browse'
+                    ? 'bottom-[calc(8.5rem+env(safe-area-inset-bottom,0px))] sm:bottom-40'
+                    : 'bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] sm:bottom-24'
+                }`}
           >
             <header className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
               <div>
@@ -154,7 +162,7 @@ export function ContinueReadingFab({ inline = false }: { inline?: boolean }) {
                 </p>
               </div>
             ) : (
-              <ul className="max-h-[60vh] divide-y divide-gray-50 overflow-x-hidden overflow-y-auto">
+              <ul className="custom-scrollbar max-h-[60vh] divide-y divide-gray-50 overflow-x-hidden overflow-y-auto pr-1">
                 {entries.map((entry) => (
                   <ContinueReadingCard
                     key={entry.issueId}

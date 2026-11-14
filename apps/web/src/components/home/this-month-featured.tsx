@@ -320,7 +320,7 @@ export function ThisMonthFeatured({
     const requestedIndex = requested ? visibleIssues.findIndex((issue) => issue.id === requested) : -1;
     if (requestedIndex >= 0) pendingSelectionRef.current = null;
     setCurrentIndex(requestedIndex >= 0 ? requestedIndex : Math.max(0, visibleIssues.length - 1));
-  }, [magazineFilter, showPrevious, visibleIssues]);
+  }, [magazineFilter, showPrevious]);
 
   // Defensive clamp — if the visible set shrinks to fewer items than the
   // current index, snap back to start.
@@ -504,7 +504,13 @@ export function ThisMonthFeatured({
                   onTouchEnd={onHeroTouchEnd}
                   onTouchCancel={()=>{swipeStartRef.current=null;}}
                 >
-                  <FeaturedSlide issue={currentIssue!} animateEntrance={!heroHasEntered} onHeroReady={() => setHeroHasEntered(true)} onPreviewChange={setPreviewOpen} />
+                  <FeaturedSlide
+                    issue={currentIssue!}
+                    animateEntrance={!heroHasEntered}
+                    onHeroReady={() => setHeroHasEntered(true)}
+                    previewOpen={previewOpen}
+                    onPreviewChange={setPreviewOpen}
+                  />
                 </motion.div>
               </AnimatePresence>
               {!previewOpen && <><button type="button" onClick={goPrev} disabled={currentIndex<=0} aria-label="Show previous featured issue" className="group/left-edge absolute inset-y-0 left-0 z-20 hidden w-[11%] items-center justify-start pl-3 text-flame-600 md:flex lg:pl-5 disabled:cursor-not-allowed disabled:text-flame-300">
@@ -529,9 +535,9 @@ export function ThisMonthFeatured({
           </>
         )}
       </div>
-      {/* Toolbar — magazine chips + previous-month toggle. Hidden when there's
+      {/* Toolbar — magazine chips + previous-month toggle. Hidden when previewing or when there's
           nothing meaningful to filter. */}
-      {(showMagazineFilter || hasPrevContent) && (
+      {!previewOpen && (showMagazineFilter || hasPrevContent) && (
         <div
           className="mt-5 flex flex-col items-center gap-3 px-4 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-x-6 sm:gap-y-3 sm:px-0"
           role="toolbar"
@@ -617,7 +623,14 @@ function MagazineFilterStrip({
                     : 'border border-gray-200 bg-white text-gray-600 hover:border-flame-300 hover:bg-flame-50 hover:text-flame-700',
               )}
             >
-              {opt.label}
+              {opt.label.toLowerCase().includes('all india') ? (
+                <>
+                  <span className="hidden sm:inline">{opt.label}</span>
+                  <span className="sm:hidden">AIM</span>
+                </>
+              ) : (
+                opt.label
+              )}
             </button>
           );
         })}
@@ -841,11 +854,22 @@ function EmptyCard({
 }
 
 // ---------- Single slide (rich, focused — with embedded reader) ----------
-function FeaturedSlide({ issue, animateEntrance, onHeroReady, onPreviewChange }: { issue: ApiIssue; animateEntrance: boolean; onHeroReady: () => void; onPreviewChange: (open: boolean) => void }) {
+function FeaturedSlide({
+  issue,
+  animateEntrance,
+  onHeroReady,
+  previewOpen,
+  onPreviewChange,
+}: {
+  issue: ApiIssue;
+  animateEntrance: boolean;
+  onHeroReady: () => void;
+  previewOpen: boolean;
+  onPreviewChange: (open: boolean) => void;
+}) {
   const router = useRouter();
   const reduceMotion = useReducedMotion();
   const { toggle, isBookmarked } = useBookmarks();
-  const [previewOpen, setPreviewOpen] = useState(false);
   const [infoDrawerOpen, setInfoDrawerOpen] = useState(false);
   const articleRef = useRef<HTMLElement>(null);
   const bookmarked = isBookmarked(issue.id);
@@ -855,7 +879,6 @@ function FeaturedSlide({ issue, animateEntrance, onHeroReady, onPreviewChange }:
 
   function changePreview(open: boolean) {
     if (open && !issue.pdf_url) return;
-    setPreviewOpen(open);
     onPreviewChange(open);
   }
 
@@ -881,7 +904,7 @@ function FeaturedSlide({ issue, animateEntrance, onHeroReady, onPreviewChange }:
   // but if a `pdf_url` ever lands null here we'd hand react-pdf a broken
   // input — so the carousel just won't render the slide.
   return (
-    <article ref={articleRef} className={cn("scroll-mt-[104px] bg-[#fffdf9] sm:scroll-mt-[112px]", !previewOpen && "overflow-hidden min-h-[720px] md:min-h-[max(720px,56.28vw)]")}>
+    <article ref={articleRef} className={cn("scroll-mt-[104px] bg-[#fffdf9] sm:scroll-mt-[112px]", !previewOpen && "overflow-hidden md:min-h-[max(720px,56.28vw)]")}>
       <div
         aria-hidden={previewOpen || undefined}
         inert={previewOpen || undefined}
@@ -1037,7 +1060,7 @@ function IssueInfoDrawer({
             </div>
 
             {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto px-4 py-4">
+            <div className="custom-scrollbar flex-1 overflow-y-auto px-4 py-4">
               {/* Cover thumbnail & Title */}
               <div className="flex gap-4">
                 <div className="relative h-36 w-[108px] shrink-0 overflow-hidden rounded-md bg-gradient-to-br from-gold-100 to-flame-50 shadow-sm">
@@ -1251,15 +1274,15 @@ function MobileScenicHero({ issue, eyebrow, monthName, bookmarked, onBookmark, o
     '--hero-focal-x-phone':`${placement.focalX}%`,'--hero-focal-y-phone':`${placement.focalY}%`,
     '--hero-focal-x-phone-negative':`${-placement.focalX}%`,'--hero-focal-y-phone-negative':`${-placement.focalY}%`,
   } as React.CSSProperties;
-  return <div data-hero-swipe className="bg-white md:hidden">
-    <div style={sceneVariables} className="scenic-phone-scene relative h-[720px] overflow-hidden">
+  return <div data-hero-swipe className="flex flex-col bg-white md:hidden min-h-[calc(100dvh-4rem)] max-h-[820px]">
+    <div style={sceneVariables} className="scenic-phone-scene relative min-h-[280px] flex-1 overflow-hidden">
       <div className={cn('scenic-artboard scenic-artboard-phone',animateOnMount&&sceneReady&&'scenic-artboard-enter')}>
         <ScenicBackground src={aimOctoberPhoneHero} media="(max-width: 767px)" sizes="100vw" className="object-cover" onReady={()=>{if(!backgroundSrc){setSceneReady(true);onReady();}}} />
         {backgroundSrc && (
           <ScenicBackground key={backgroundSrc} src={backgroundSrc} media="(max-width: 767px)" sizes="100vw" className="object-cover transition-opacity duration-300" animateEntrance={false} onReady={()=>{setSceneReady(true);onReady();}} />
         )}
         <div className="absolute inset-x-0 bottom-0 h-[24%] bg-gradient-to-b from-transparent via-white/65 to-white" aria-hidden="true" />
-        <button type="button" onClick={onBookOpen} disabled={!issue.pdf_url} aria-label={issue.pdf_url?`Read ${issue.title}`:`${issue.title} is not yet readable`} style={{left:`${placement.bookX}%`,bottom:`${100-placement.baselineY}%`,width:`${52*placement.bookScale/100}%`,transform:'translateX(-50%)'}} className="scenic-book-stage absolute z-[3] aspect-[2/3] disabled:cursor-not-allowed">
+        <button type="button" onClick={onBookOpen} disabled={!issue.pdf_url} aria-label={issue.pdf_url?`Read ${issue.title}`:`${issue.title} is not yet readable`} style={{left:`${placement.bookX}%`,bottom:`${100-placement.baselineY}%`,width:`${52*placement.bookScale/100}%`,transform:'translateX(-50%)'}} className="scenic-book-stage absolute z-[3] aspect-[2/3] max-h-[70%] disabled:cursor-not-allowed">
           <span className="scenic-book-shadow" aria-hidden="true" />
           <span className="scenic-book block h-full w-full" style={{ '--book-spine-color': coverPalette.dominant, '--book-spine-foreground': coverPalette.foreground } as React.CSSProperties}>
             <span className="scenic-book-pages" aria-hidden="true" />
@@ -1273,11 +1296,11 @@ function MobileScenicHero({ issue, eyebrow, monthName, bookmarked, onBookmark, o
         </button>
       </div>
     </div>
-    <div className="bg-white px-7 py-6">
+    <div className="shrink-0 bg-white px-5 py-4 sm:px-7 sm:py-6">
       <p className="text-[10px] font-semibold uppercase tracking-[.18em] transition-colors duration-300" style={{color:issueColours.body}}>{eyebrow}</p>
-      <h1 className="mt-2 font-heading text-[clamp(1.9rem,9vw,3rem)] leading-none transition-colors duration-300" style={{color:issueColours.heading}}>{issue.theme || issue.title}</h1>
+      <h1 className="mt-1 font-heading text-[clamp(1.75rem,8vw,2.75rem)] leading-none transition-colors duration-300" style={{color:issueColours.heading}}>{issue.theme || issue.title}</h1>
       {issue.description ? <HeroDescriptionSummary description={issue.description} color={issueColours.body} issueId={issue.id} mobile /> : null}
-      <div className="mt-4 flex gap-2">
+      <div className="mt-3.5 flex gap-2">
         {issue.pdf_url?<Link href={readerPath(issue.id)} prefetch={true} onClick={() => rememberReaderSource(issue.id,'shelf')} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white transition-colors duration-300" style={{background:issueColours.button,color:issueColours.buttonForeground}}><BookOpen className="h-4 w-4"/>Read issue</Link>:<span className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white transition-colors duration-300" style={{background:issueColours.button,color:issueColours.buttonForeground}}><BookOpen className="h-4 w-4"/>Embargoed</span>}
         <button type="button" onClick={onPreview} disabled={!issue.pdf_url} aria-label="Preview pages" className="flex h-11 w-11 items-center justify-center rounded-xl border bg-white/80 transition-colors duration-300 disabled:cursor-not-allowed disabled:opacity-50" style={{color:issueColours.heading,borderColor:issueColours.body}}><FileText className="h-5 w-5"/></button>
         <button type="button" onClick={onBookmark} aria-label={bookmarked?'Remove bookmark':'Save to bookmarks'} className="flex h-11 w-11 items-center justify-center rounded-xl border bg-white/80 transition-colors duration-300" style={{color:issueColours.heading,borderColor:issueColours.body}}><Heart className={cn('h-5 w-5',bookmarked&&'fill-[#d97735] text-[#d97735]')}/></button>

@@ -19,7 +19,11 @@ export function configurePdfWorker(pdfjsLib: PdfJsWorkerHost) {
     pdfjsLib.GlobalWorkerOptions.workerSrc = PDF_WORKER_SRC;
   }
   // Silence expected font missing warnings and text layer abort exceptions
-  if (pdfjsLib.VerbosityLevel && typeof pdfjsLib.VerbosityLevel.ERRORS === 'number') {
-    pdfjsLib.verbosity = pdfjsLib.VerbosityLevel.ERRORS;
+  try {
+    if (pdfjsLib.VerbosityLevel && typeof pdfjsLib.VerbosityLevel.ERRORS === 'number') {
+      pdfjsLib.verbosity = pdfjsLib.VerbosityLevel.ERRORS;
+    }
+  } catch {
+    // Ignore in environments where the imported module namespace is sealed
   }
 }

@@ -14,6 +14,8 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Download,
   FileText,
   ZoomIn,
@@ -856,26 +858,10 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
     if (typeof window === 'undefined') return;
     const sc = scrollContainerRef.current;
     if (!sc) return;
-    const SHOW_AT = 40;
-    const DELTA = 4;
-
     const onScroll = () => {
-      // On desktop, force the header visible and skip the hide logic.
-      if (window.innerWidth >= 0) {
-        setHeaderHidden(false);
-        lastScrollTopRef.current = sc.scrollTop;
-        return;
-      }
-      const st = sc.scrollTop;
-      const last = lastScrollTopRef.current;
-      if (st < SHOW_AT) {
-        setHeaderHidden(false);
-      } else if (st > last + DELTA) {
-        setHeaderHidden(true);
-      } else if (st < last - DELTA) {
-        setHeaderHidden(false);
-      }
-      lastScrollTopRef.current = st;
+      // Header stays permanently visible and sticky on all devices
+      setHeaderHidden(false);
+      lastScrollTopRef.current = sc.scrollTop;
     };
 
     sc.addEventListener('scroll', onScroll, { passive: true });
@@ -1081,8 +1067,16 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
     };
   }, []);
 
-  const zoomIn = () => setScale((s) => Math.min(s + 0.2, 4));
-  const zoomOut = () => setScale((s) => Math.max(s - 0.2, 0.1));
+  const zoomIn = () => setScale((s) => {
+    const pct = Math.round(s * 100);
+    const next = Math.min(400, Math.floor(pct / 10) * 10 + 10);
+    return Math.round(next) / 100;
+  });
+  const zoomOut = () => setScale((s) => {
+    const pct = Math.round(s * 100);
+    const prev = Math.max(20, Math.ceil(pct / 10) * 10 - 10);
+    return Math.round(prev) / 100;
+  });
   const fitWidth = useCallback(() => {
     const container = scrollContainerRef.current;
     if (!container || !pageAspect) return;
@@ -1197,22 +1191,17 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
       aria-label={`Reading ${issue.title}`}
       className="flex h-screen flex-col bg-gray-100"
     >
-      {/* Toolbar wrap — animates height for auto-hide on mobile/tablet. The
-          progress bar lives inside so it slides off with the toolbar; while
-          hidden, page progress is communicated via the floating scrubber. */}
-      <motion.div
+      {/* Toolbar wrap — permanently docked & sticky to the top */}
+      <div
         ref={headerWrapRef}
-        initial={false}
-        animate={{ height: headerHidden ? 0 : 'auto', opacity: headerHidden ? 0 : 1 }}
-        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-        className="relative z-10 shrink-0 overflow-hidden bg-white"
+        className="sticky top-0 z-30 shrink-0 bg-white shadow-xs"
       >
         <header className="bg-white shadow-sm">
           {/* One compact row on phone/tablet; desktop keeps the full identity
               and centred reader controls. */}
           <div className="relative flex items-center justify-between gap-2 px-3 py-2 sm:px-4 sm:py-2.5">
             {/* Left: back + cover + title */}
-            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <div className="flex min-w-0 flex-1 lg:flex-initial items-center gap-1.5 sm:gap-2 mr-2">
               {readerSource === 'shelf' ? (
                 <button
                   type="button"
@@ -1240,7 +1229,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
                 onClick={() => setInfoDrawerOpen(true)}
                 aria-label={`Information about ${issue.title}`}
                 aria-expanded={infoDrawerOpen}
-                className="group flex min-w-0 max-w-[140px] xs:max-w-[180px] sm:max-w-[240px] lg:max-w-none shrink-0 lg:shrink items-center gap-2 rounded-xl border border-flame-100/90 bg-gradient-to-br from-white to-flame-50/40 p-1.5 text-left shadow-xs transition-colors hover:border-flame-200 hover:bg-flame-50/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame-500 lg:px-2.5"
+                className="group flex min-w-0 flex-1 lg:flex-initial lg:max-w-md items-center gap-2 rounded-xl border border-flame-100/90 bg-gradient-to-br from-white to-flame-50/40 p-1.5 text-left shadow-xs transition-colors hover:border-flame-200 hover:bg-flame-50/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame-500 lg:px-2.5"
               >
                 {issue.coverImageUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -1255,24 +1244,14 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
                     {issue.theme || issue.magazine?.name}
                   </span>
                   <span className="block truncate text-[10px] text-gray-500 sm:text-xs">
-                    {formatMonthYear(issue.month, issue.year)}
+                    {(issue.magazine?.name?.toLowerCase().includes('all india')
+                      ? 'AIM'
+                      : (issue.magazine?.name || ''))
+                      ? `${issue.magazine?.name?.toLowerCase().includes('all india') ? 'AIM' : issue.magazine?.name} ${formatMonthYear(issue.month, issue.year)}`
+                      : formatMonthYear(issue.month, issue.year)}
                   </span>
                 </span>
               </button>
-            </div>
-
-            <div className="flex min-w-0 flex-1 items-center justify-center lg:hidden">
-              <PageControls
-                compact
-                currentPage={currentPage}
-                numPages={numPages}
-                pagesPerView={effectivePagesPerView}
-                viewMode={viewMode}
-                goToPage={goToPage}
-                setViewMode={setViewMode}
-                setPagesPerView={setPagesPerView}
-                showPagesPerViewToggle={false}
-              />
             </div>
 
             {/* Desktop center cluster — absolute centred over row 1. Hidden on
@@ -1295,26 +1274,31 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
             {/* Right cluster: actions. Zoom + fullscreen + info live here on
                 desktop; on phone/tablet zoom moves to row 2 and fullscreen/info
                 are hidden (they're not useful on touch devices). */}
-            <div className="flex shrink-0 items-center gap-0.5 rounded-xl bg-gradient-to-br from-flame-50/50 to-gold-50/40 p-0.5 ring-1 ring-flame-100/70">
-              <button
-                onClick={() => toggle(issue.id)}
-                className="flex h-11 w-11 items-center justify-center rounded-lg text-gray-600 transition-all hover:bg-white hover:text-flame-700 hover:shadow-sm lg:h-9 lg:w-9"
-                aria-label="Bookmark"
-              >
-                <Heart
-                  className={`h-4 w-4 ${bookmarked ? 'fill-red-500 text-red-500' : ''}`}
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+              <div className="lg:hidden">
+                <PageControls
+                  compact
+                  currentPage={currentPage}
+                  numPages={numPages}
+                  pagesPerView={effectivePagesPerView}
+                  viewMode={viewMode}
+                  goToPage={goToPage}
+                  setViewMode={setViewMode}
+                  setPagesPerView={setPagesPerView}
+                  showPagesPerViewToggle={false}
                 />
-              </button>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen(true)}
-                className="flex h-11 w-11 items-center justify-center rounded-lg text-gray-700 transition-colors hover:bg-white hover:text-flame-700 lg:hidden"
-                aria-label="Open reader menu"
-                aria-expanded={mobileMenuOpen}
-              >
-                <Menu className="h-5 w-5" />
-              </button>
+              <div className="flex shrink-0 items-center gap-0.5 rounded-xl bg-gradient-to-br from-flame-50/50 to-gold-50/40 p-0.5 ring-1 ring-flame-100/70">
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(true)}
+                  className="flex h-11 w-11 items-center justify-center rounded-lg text-gray-700 transition-colors hover:bg-white hover:text-flame-700 lg:hidden"
+                  aria-label="Open reader menu"
+                  aria-expanded={mobileMenuOpen}
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
 
               <div className="hidden items-center lg:flex">
               <ShareIssueButton issue={issue} />
@@ -1361,6 +1345,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
               </div>
             </div>
           </div>
+        </div>
 
         </header>
 
@@ -1373,7 +1358,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
             style={{ width: `${progressPct}%` }}
           />
         </div>
-      </motion.div>
+      </div>
 
       {/* Continue-where-you-left-off toast — anchored to the live header
           bottom (mobile two-row vs desktop one-row). Hides with the toolbar. */}
@@ -1722,42 +1707,31 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
         enabled={viewMode === 'continuous'}
       />
 
-      {/* Mobile bottom reading pill for thumb reachability in single-page mode */}
-      {isPhone && viewMode === 'single' && numPages > 0 && (
+      {/* Floating page up/down navigation for phone and tablet on bottom right */}
+      {numPages > 0 && (
         <aside
-          aria-label="Reading page navigation"
-          className="fixed bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-full border border-flame-200/80 bg-white/95 px-3 py-1 shadow-lg backdrop-blur-md"
+          aria-label="Page navigation"
+          className="fixed right-4 bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] z-40 flex flex-col gap-2.5 lg:hidden"
         >
           <button
             type="button"
-            onClick={() => goToPage(currentPage - effectivePagesPerView)}
+            onClick={() => goToPage(Math.max(1, currentPage - 1))}
             disabled={currentPage <= 1}
             aria-label="Previous page"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-flame-50 hover:text-flame-700 disabled:opacity-30"
+            title="Previous page"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-flame-200/80 bg-white/95 text-flame-700 shadow-lg ring-1 ring-flame-100/60 backdrop-blur-xs transition-all hover:bg-flame-50 hover:text-flame-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            <ChevronLeft className="h-5 w-5" />
+            <ChevronUp className="h-6 w-6" />
           </button>
-          <span className="min-w-[70px] text-center text-xs font-semibold text-gray-800">
-            {currentPage} <span className="font-normal text-gray-400">/</span> {numPages}
-          </span>
           <button
             type="button"
-            onClick={() => goToPage(currentPage + effectivePagesPerView)}
+            onClick={() => goToPage(Math.min(numPages, currentPage + 1))}
             disabled={currentPage >= numPages}
             aria-label="Next page"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-flame-50 hover:text-flame-700 disabled:opacity-30"
+            title="Next page"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-flame-200/80 bg-white/95 text-flame-700 shadow-lg ring-1 ring-flame-100/60 backdrop-blur-xs transition-all hover:bg-flame-50 hover:text-flame-800 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            <ChevronRight className="h-5 w-5" />
-          </button>
-          <div className="mx-1 h-4 w-px bg-gray-200" aria-hidden="true" />
-          <button
-            type="button"
-            onClick={() => setViewMode('continuous')}
-            aria-label="Switch to continuous scroll"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-gray-600 transition-colors hover:bg-flame-50 hover:text-flame-700"
-            title="Continuous scroll"
-          >
-            <Rows3 className="h-4 w-4" />
+            <ChevronDown className="h-6 w-6" />
           </button>
         </aside>
       )}
@@ -1819,6 +1793,48 @@ function PageControls({
       setInputVal(String(currentPage));
     }
   };
+
+  if (compact) {
+    return (
+      <div className="flex h-12 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-flame-100/90 bg-gradient-to-br from-white to-flame-50/40 px-3 py-1.5 shadow-xs">
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={inputVal}
+          onFocus={(e) => {
+            isFocusedRef.current = true;
+            e.target.select();
+          }}
+          onBlur={() => {
+            isFocusedRef.current = false;
+            commitPage(inputVal);
+          }}
+          onChange={(e) => {
+            const raw = e.target.value.trim();
+            if (/^\d*$/.test(raw)) {
+              setInputVal(raw);
+              const n = parseInt(raw, 10);
+              if (!isNaN(n) && n >= 1 && n <= numPages) {
+                goToPage(n);
+              }
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.currentTarget.blur();
+            } else if (e.key === 'Escape') {
+              setInputVal(String(currentPage));
+              e.currentTarget.blur();
+            }
+          }}
+          aria-label={`Page number, of ${numPages || 'unknown'}`}
+          className="w-10 rounded-lg border border-flame-200/70 bg-white py-1 text-center text-xs font-semibold text-gray-900 focus:border-flame-400 focus:outline-none focus:ring-1 focus:ring-flame-200"
+        />
+        <span aria-hidden="true" className="text-xs font-medium text-gray-500">/ {numPages || '—'}</span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-0.5 rounded-xl bg-gradient-to-br from-flame-50/50 to-gold-50/40 p-0.5 ring-1 ring-flame-100/70">
@@ -2330,7 +2346,7 @@ function FindTextDrawer({
               </div>
             </form>
 
-            <div className="flex-1 overflow-y-auto p-4" aria-live="polite">
+            <div className="custom-scrollbar flex-1 overflow-y-auto p-4" aria-live="polite">
               {status === 'idle' && <p className="text-sm text-gray-500">Type to search inside this issue.</p>}
               {status === 'loading' && results.length === 0 && (
                 <div className="flex items-center gap-2 py-4 text-sm text-gray-500">
@@ -2453,7 +2469,7 @@ function IssueInfoDrawer({
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-4 py-4">
+            <div className="custom-scrollbar flex-1 overflow-y-auto px-4 py-4">
               <div className="flex gap-4">
                 <div className="relative h-36 w-[108px] shrink-0 overflow-hidden rounded-md bg-gradient-to-br from-gold-100 to-flame-50 shadow-sm">
                   <div className="absolute inset-y-0 left-0 z-10 w-1.5 bg-gradient-to-b from-gold-500 to-flame-500" />
