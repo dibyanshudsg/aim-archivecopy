@@ -37,7 +37,7 @@ export function Footer({ navigation }: { navigation?: PublicNavigation }) {
           {/* Brand */}
           <div className="hidden sm:col-span-2 sm:block lg:col-span-1">
             <Link href="/" prefetch={true} className="flex items-center gap-3">
-              <Image src="/api/brand/logo" unoptimized alt="AIM Archive" width={40} height={40} className="rounded-lg object-cover" />
+              <Image src="/api/brand/logo" unoptimized alt="AIM Archive" width={40} height={40} className="h-10 w-10 shrink-0 rounded-lg object-contain" />
               <span className="font-heading text-lg font-bold text-gray-900">AIM Archive</span>
             </Link>
             <p className="mt-4 hidden text-sm leading-relaxed text-gray-500 sm:block">

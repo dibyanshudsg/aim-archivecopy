@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Search, BookMarked } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { BookmarksHeaderMenu } from './bookmarks-header-menu';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -163,10 +163,10 @@ export function Header({
     >
       <nav
         className={cn(
-          'mx-auto flex w-full max-w-[1504px] items-center',
+          'mx-auto flex w-full max-w-[1504px] items-center transition-[gap,padding] duration-200 ease-out motion-reduce:transition-none',
           contextualControlsVisible
-            ? 'gap-0.5 px-1 py-2 transition-[gap,padding] duration-200 ease-out min-[600px]:gap-2 min-[600px]:px-3 sm:px-4 sm:py-3 md:gap-3 md:px-6 md:py-4 lg:px-8 motion-reduce:transition-none'
-            : 'gap-3 px-4 py-3 sm:px-6 sm:py-4 lg:px-8',
+            ? 'gap-0.5 px-1 py-1.5 min-[600px]:gap-2 min-[600px]:px-3 sm:px-4 sm:py-2 md:gap-3 md:px-6 lg:px-8'
+            : 'gap-3 px-4 py-2 sm:px-6 sm:py-2.5 lg:px-8',
         )}
       >
         {/* Logo */}
@@ -191,7 +191,7 @@ export function Header({
               width={40}
               height={40}
               className={cn(
-                'rounded-lg object-cover transition-[width,height] duration-200 ease-out motion-reduce:transition-none',
+                'shrink-0 rounded-lg object-contain transition-[width,height] duration-200 ease-out motion-reduce:transition-none',
                 contextualControlsVisible
                   ? 'h-9 w-9 min-[600px]:h-10 min-[600px]:w-10'
                   : 'h-10 w-10',
@@ -304,69 +304,51 @@ export function Header({
               onClick={toggleDropdown}
               aria-label={dropdownIsOpen ? 'Close search' : 'Open search'}
               aria-expanded={dropdownIsOpen}
-              className={`flex shrink-0 items-center justify-center transition-colors ${
-                contextualControlsVisible
-                  ? 'h-11 w-11 rounded-xl border border-flame-200 bg-white text-flame-700 shadow-sm hover:border-flame-300 hover:bg-flame-50 focus-visible:ring-2 focus-visible:ring-flame-300 focus-visible:ring-offset-2'
-                  : 'h-11 w-11 rounded-lg'
-              } ${
-                dropdownIsOpen
-                  ? 'bg-gradient-to-r from-gold-100 to-flame-100 text-flame-700'
-                  : contextualControlsVisible
-                    ? ''
-                    : 'text-gray-500 hover:bg-flame-50 hover:text-flame-700'
-              }`}
+              className={cn(
+                'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-flame-200 bg-white text-flame-700 shadow-sm transition-colors hover:border-flame-300 hover:bg-flame-50 focus-visible:ring-2 focus-visible:ring-flame-300 focus-visible:ring-offset-2',
+                dropdownIsOpen && 'border-flame-300 bg-gradient-to-r from-gold-100 to-flame-100 text-flame-800',
+              )}
             >
               <Search className="h-5 w-5" />
             </button>
           )}
-          <BookmarksHeaderMenu contextualControlsVisible={contextualControlsVisible} />
-          {pathname !== '/bookmarks' && pathname !== '/browse' && <Link
-            href="/bookmarks"
-            onMouseEnter={() => prefetchRoute('/bookmarks')}
-            onFocus={() => prefetchRoute('/bookmarks')}
-            aria-current={isLinkActive('/bookmarks') ? 'page' : undefined}
-            className={cn(
-              'relative hidden shrink-0 items-center justify-center transition-colors md:flex',
-              contextualControlsVisible
-                ? 'h-11 w-11 rounded-xl border border-flame-200 bg-white shadow-sm focus-visible:ring-2 focus-visible:ring-flame-300 focus-visible:ring-offset-2'
-                : 'h-11 w-11 rounded-lg',
-              isLinkActive('/bookmarks')
-                ? 'bg-gradient-to-r from-gold-100 to-flame-100 text-flame-700'
-                : contextualControlsVisible
-                  ? 'text-flame-700 hover:border-flame-300 hover:bg-flame-50'
-                  : 'text-gray-500 hover:bg-flame-50 hover:text-flame-700',
-            )}
-            aria-label={`Bookmarks${bookmarkCount > 0 ? ` (${bookmarkCount})` : ''}`}
-          >
-            <BookMarked className="h-5 w-5" />
-            <AnimatePresence>
-              {bookmarkCount > 0 && (
-                <motion.span
-                  key={bookmarkCount}
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0, opacity: 0 }}
-                  transition={{ type: 'spring', damping: 18, stiffness: 380 }}
-                  className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-gradient-to-r from-gold-500 to-flame-500 px-1 text-[10px] font-bold text-white shadow-sm"
+          {/* Mobile Bookmark Menu (smooth collapse when contextual controls appear on phone) */}
+          <div className="md:hidden">
+            <AnimatePresence initial={false}>
+              {!contextualControlsVisible && (
+                <motion.div
+                  key="mobile-bookmarks"
+                  initial={reduceMotion ? false : { opacity: 0, scale: 0.85, width: 0 }}
+                  animate={{ opacity: 1, scale: 1, width: 'auto' }}
+                  exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.85, width: 0 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
+                  className="shrink-0 overflow-visible"
                 >
-                  {bookmarkCount > 99 ? '99+' : bookmarkCount}
-                </motion.span>
+                  <BookmarksHeaderMenu contextualControlsVisible={false} />
+                </motion.div>
               )}
             </AnimatePresence>
-          </Link>}
+          </div>
+
+          {/* Desktop/Tablet Bookmark Menu (opens dropdown card on all devices) */}
+          <div className="hidden md:block">
+            <BookmarksHeaderMenu />
+          </div>
           <motion.div layout="position" className="shrink-0 md:hidden">
-                <button
-                  type="button"
-                  className={cn(
-                    'relative shrink-0 transition-colors',
-                    contextualControlsVisible
-                      ? 'h-11 w-11 rounded-xl border border-flame-200 bg-white text-flame-700 shadow-sm hover:border-flame-300 hover:bg-flame-50 focus-visible:ring-2 focus-visible:ring-flame-300 focus-visible:ring-offset-2'
-                      : 'h-11 w-11 rounded-lg text-gray-600',
-                  )}
-                  onClick={() => {const next=!mobileMenuOpen;setMobileMenuOpen(next);if(next&&autoHideOnHome)setScrollHeaderVisible(true);}}
-                  aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
-                  aria-expanded={mobileMenuOpen}
-                >
+            <button
+              type="button"
+              className={cn(
+                'relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-flame-200 bg-white text-flame-700 shadow-sm transition-colors hover:border-flame-300 hover:bg-flame-50 focus-visible:ring-2 focus-visible:ring-flame-300 focus-visible:ring-offset-2',
+                mobileMenuOpen && 'border-flame-300 bg-flame-50 text-flame-800',
+              )}
+              onClick={() => {
+                const next = !mobileMenuOpen;
+                setMobileMenuOpen(next);
+                if (next && autoHideOnHome) setScrollHeaderVisible(true);
+              }}
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={mobileMenuOpen}
+            >
             {/* Three-line hamburger that morphs into an X. The top + bottom
                 bars rotate ±45° while sliding to the vertical centre; the
                 middle bar fades out. The mirrored animation runs in reverse

@@ -177,7 +177,7 @@ export function BookmarksHeaderMenu({ contextualControlsVisible = false }: Bookm
   }
 
   return (
-    <div className="relative shrink-0 md:hidden">
+    <div className="relative shrink-0">
       {/* Mobile Bookmark Header Trigger */}
       <motion.button
         ref={triggerRef}
