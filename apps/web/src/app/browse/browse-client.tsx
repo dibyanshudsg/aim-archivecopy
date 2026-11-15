@@ -347,7 +347,9 @@ function BrowseContent({
       mobile.removeEventListener('change', syncDialog);
       dialog.close();
       document.body.style.overflow = previousOverflow;
+      window.dispatchEvent(new Event('scroll'));
       if (opened) requestAnimationFrame(() => {
+        window.dispatchEvent(new Event('scroll'));
         const target = previousFocus?.isConnected && previousFocus !== document.body ? previousFocus : document.querySelector<HTMLElement>('[data-filter-trigger]');
         target?.focus({ preventScroll: true });
       });
