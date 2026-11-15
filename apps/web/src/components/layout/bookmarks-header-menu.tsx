@@ -218,7 +218,7 @@ export function BookmarksHeaderMenu({ contextualControlsVisible = false }: Bookm
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-            className="absolute top-full right-0 z-50 mt-2 flex w-[min(380px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border border-flame-100 bg-white shadow-2xl ring-1 ring-black/5"
+            className="fixed inset-x-3 top-[4.25rem] z-50 flex max-h-[calc(100vh-5.5rem)] flex-col overflow-hidden rounded-2xl border border-flame-100 bg-white shadow-2xl ring-1 ring-black/5 sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-2 sm:max-h-[calc(100vh-6rem)] sm:w-[380px]"
           >
             {/* Header */}
             <header className="flex items-center justify-between border-b border-gray-100 bg-gradient-to-r from-flame-50/50 to-white px-4 py-3">

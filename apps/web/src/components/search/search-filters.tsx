@@ -158,6 +158,7 @@ interface YearStepperInputProps {
   placeholder?: string;
   minYear?: number;
   maxYear?: number;
+  className?: string;
 }
 
 export function YearStepperInput({
@@ -167,6 +168,7 @@ export function YearStepperInput({
   placeholder = 'YYYY',
   minYear = 1950,
   maxYear = 2035,
+  className = '',
 }: YearStepperInputProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -247,7 +249,12 @@ export function YearStepperInput({
   };
 
   return (
-    <div ref={containerRef} className="relative z-20 flex items-center">
+    <div
+      ref={containerRef}
+      className={`relative flex items-center transition-[z-index] ${
+        dropdownOpen ? 'z-50' : 'z-20'
+      } ${className}`}
+    >
       <div className="flex h-11 items-center gap-1.5 rounded-xl border border-flame-200 bg-white px-2 shadow-2xs transition-colors hover:border-flame-300 focus-within:border-flame-400 focus-within:ring-2 focus-within:ring-flame-200">
         <span className="pl-1 text-xs font-semibold text-gray-500 select-none">{label}</span>
 
@@ -321,7 +328,7 @@ export function YearStepperInput({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 6, scale: 0.98 }}
             transition={{ duration: 0.15 }}
-            className="absolute top-full left-0 z-50 mt-1.5 max-h-52 w-36 overflow-y-auto rounded-xl border border-flame-100 bg-white p-1 shadow-[0_12px_32px_rgba(120,84,28,0.18)] ring-1 ring-white"
+            className="absolute top-full left-0 z-50 mt-1.5 max-h-52 w-36 overflow-y-auto rounded-xl border border-flame-100 bg-white p-1 shadow-[0_12px_32px_rgba(120,84,28,0.22)] ring-1 ring-white"
           >
             {quickYears.map((yr) => {
               const yrStr = String(yr);
@@ -395,18 +402,20 @@ export function SearchFilters({
   hasSearched = false,
 }: SearchFiltersProps) {
   return (
-    <div className="relative z-30 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-flame-100/90 bg-white p-2.5 sm:p-3 shadow-2xs">
-      <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+    <div className="relative z-30 mt-4 flex flex-col gap-3 rounded-2xl border border-flame-100/90 bg-white p-2.5 sm:p-3 shadow-2xs md:flex-row md:flex-wrap md:items-center md:justify-between">
+      <div className="flex flex-wrap items-center justify-center gap-2.5 sm:justify-start sm:gap-3">
         {/* Magazine Custom Dropdown */}
-        <SearchMagazineMenu
-          magazines={magazines}
-          selected={magazineFilter}
-          onChange={onMagazineChange}
-          loading={magazinesLoading}
-        />
+        <div className="flex w-full justify-center sm:w-auto sm:justify-start">
+          <SearchMagazineMenu
+            magazines={magazines}
+            selected={magazineFilter}
+            onChange={onMagazineChange}
+            loading={magazinesLoading}
+          />
+        </div>
 
         {/* Year Mode Selector: Specific year vs Year range (both with icons) */}
-        <div className="flex h-11 items-center rounded-xl bg-flame-50/70 p-1 text-xs font-semibold text-gray-600 ring-1 ring-flame-100">
+        <div className="flex h-11 items-center justify-center rounded-xl bg-flame-50/70 p-1 text-xs font-semibold text-gray-600 ring-1 ring-flame-100">
           <button
             type="button"
             onClick={() => onYearModeChange('specific')}
@@ -435,31 +444,41 @@ export function SearchFilters({
 
         {/* Year Stepper Inputs */}
         {yearMode === 'specific' ? (
-          <YearStepperInput
-            label="Year"
-            value={specificYear}
-            onChange={onSpecificYearChange}
-            placeholder={String(new Date().getFullYear())}
-          />
-        ) : (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full justify-center sm:w-auto sm:justify-start">
             <YearStepperInput
-              label="From"
-              value={yearFrom}
-              onChange={onYearFromChange}
-              placeholder="1990"
-            />
-            <span className="text-xs font-bold text-gray-400">—</span>
-            <YearStepperInput
-              label="To"
-              value={yearTo}
-              onChange={onYearToChange}
+              label="Year"
+              value={specificYear}
+              onChange={onSpecificYearChange}
               placeholder={String(new Date().getFullYear())}
             />
           </div>
+        ) : (
+          <div className="flex w-full flex-col items-center gap-2 sm:w-auto sm:flex-row sm:gap-2">
+            <div className="relative z-30 flex w-full justify-center sm:w-auto">
+              <YearStepperInput
+                label="From"
+                value={yearFrom}
+                onChange={onYearFromChange}
+                placeholder="1990"
+                className="z-30"
+              />
+            </div>
+            <span className="hidden text-xs font-bold text-gray-400 select-none sm:inline-block">—</span>
+            <div className="relative z-20 flex w-full justify-center sm:w-auto">
+              <YearStepperInput
+                label="To"
+                value={yearTo}
+                onChange={onYearToChange}
+                placeholder={String(new Date().getFullYear())}
+                className="z-20"
+              />
+            </div>
+          </div>
         )}
+      </div>
 
-        {/* Clear Filters Button */}
+      {/* Right side: Reset filter button and match status */}
+      <div className="ml-auto flex w-full items-center justify-end gap-2.5 sm:w-auto">
         {hasActiveFilters && (
           <button
             type="button"
@@ -470,19 +489,16 @@ export function SearchFilters({
             <span>Reset filters</span>
           </button>
         )}
-      </div>
 
-      {/* Right side: match status */}
-      {hasSearched && (
-        <div className="ml-auto pr-1">
+        {hasSearched && (
           <span
             role="status"
             className="inline-flex items-center rounded-lg bg-flame-50/80 px-2.5 py-1 text-xs font-semibold tracking-wide text-flame-800 ring-1 ring-flame-200/60"
           >
             {loading ? 'Searching…' : totalMatches !== null && totalMatches !== undefined ? `${totalMatches} match${totalMatches !== 1 ? 'es' : ''} shown` : ''}
           </span>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

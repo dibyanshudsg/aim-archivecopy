@@ -37,8 +37,8 @@ export function SearchClient({ navigation, initialMagazines }: SearchClientProps
   const [yearMode, setYearMode] = useState<'specific' | 'range'>(() => {
     const yf = searchParams.get('year_from');
     const yt = searchParams.get('year_to');
-    if (yf && yt && yf === yt) return 'specific';
-    return 'range';
+    if (yf && yt && yf !== yt) return 'range';
+    return 'specific';
   });
   const [specificYear, setSpecificYear] = useState(() => {
     const yf = searchParams.get('year_from');
@@ -136,11 +136,11 @@ export function SearchClient({ navigation, initialMagazines }: SearchClientProps
       setMagazineFilter(nextMag);
       setYearFrom(nextYF);
       setYearTo(nextYT);
-      if (nextYF && nextYT && nextYF === nextYT) {
-        setYearMode('specific');
-        setSpecificYear(nextYF);
-      } else {
+      if (nextYF && nextYT && nextYF !== nextYT) {
         setYearMode('range');
+        setSpecificYear(nextYF || nextYT || '');
+      } else {
+        setYearMode('specific');
         setSpecificYear(nextYF || nextYT || '');
       }
       setAvailability(nextAvail);
@@ -165,11 +165,11 @@ export function SearchClient({ navigation, initialMagazines }: SearchClientProps
     setMagazineFilter(nextMag);
     setYearFrom(nextYF);
     setYearTo(nextYT);
-    if (nextYF && nextYT && nextYF === nextYT) {
-      setYearMode('specific');
-      setSpecificYear(nextYF);
-    } else {
+    if (nextYF && nextYT && nextYF !== nextYT) {
       setYearMode('range');
+      setSpecificYear(nextYF || nextYT || '');
+    } else {
+      setYearMode('specific');
       setSpecificYear(nextYF || nextYT || '');
     }
     setAvailability(nextAvail);
@@ -347,6 +347,7 @@ export function SearchClient({ navigation, initialMagazines }: SearchClientProps
     setYearFrom('');
     setYearTo('');
     setSpecificYear('');
+    setYearMode('specific');
     setCurrentPage(1);
     syncToUrl({ magazineId: 'all', yearFrom: '', yearTo: '' }, true);
   };
@@ -583,7 +584,7 @@ export function SearchClient({ navigation, initialMagazines }: SearchClientProps
                           <div className="absolute inset-0 flex items-center" aria-hidden="true">
                             <div className="w-full border-t border-flame-100" />
                           </div>
-                          <span className="relative rounded-full border border-flame-200 bg-white px-3.5 py-0.5 font-heading text-xs font-bold text-flame-800 shadow-2xs">
+                          <span className="relative rounded-full bg-gradient-to-r from-gold-500 to-flame-500 px-3.5 py-0.5 font-heading text-xs font-bold text-white shadow-xs">
                             {group.letter}
                           </span>
                         </div>

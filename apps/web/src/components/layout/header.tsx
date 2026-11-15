@@ -318,9 +318,9 @@ export function Header({
               {!contextualControlsVisible && (
                 <motion.div
                   key="mobile-bookmarks"
-                  initial={reduceMotion ? false : { opacity: 0, scale: 0.85, width: 0 }}
-                  animate={{ opacity: 1, scale: 1, width: 'auto' }}
-                  exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.85, width: 0 }}
+                  initial={reduceMotion ? false : { opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: 'auto' }}
+                  exit={reduceMotion ? { opacity: 0 } : { opacity: 0, width: 0 }}
                   transition={{ duration: reduceMotion ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
                   className="shrink-0 overflow-visible"
                 >
