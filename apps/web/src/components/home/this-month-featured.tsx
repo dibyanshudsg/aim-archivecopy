@@ -126,24 +126,18 @@ function ScenicBackground({ src, media, sizes, className, animateEntrance = fals
   animateEntrance?: boolean;
   onReady: () => void;
 }) {
-  const [loaded, setLoaded] = useState(!animateEntrance);
+  const [loaded, setLoaded] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    if (!animateEntrance) {
-      setLoaded(true);
-      return;
-    }
+    setLoaded(false);
     const img = imgRef.current;
     if (img && img.complete && img.naturalWidth > 0 && img.currentSrc !== TRANSPARENT_PIXEL) {
-      const timer = setTimeout(() => {
-        setLoaded(true);
-        onReady();
-      }, 50);
-      return () => clearTimeout(timer);
+      setLoaded(true);
+      onReady();
     }
-  }, [src, animateEntrance, onReady]);
+  }, [src, onReady]);
 
   const { props } = getImageProps({
     src,
@@ -164,8 +158,8 @@ function ScenicBackground({ src, media, sizes, className, animateEntrance = fals
         style={props.style}
         className={cn(
           className,
-          animateEntrance && 'transition-opacity ease-out',
-          animateEntrance && (reduceMotion ? 'duration-150' : 'duration-[1200ms]'),
+          'transition-opacity ease-out',
+          reduceMotion ? 'duration-150' : 'duration-500',
           loaded ? 'opacity-100' : 'opacity-0'
         )}
         fetchPriority="high"
@@ -299,8 +293,9 @@ export function ThisMonthFeatured({
   }, [onPreviewChange, previewOpen]);
 
   useEffect(() => {
-    // Preload hero backgrounds for all carousel issues so switching magazine pills is instant
-    for (const item of issues) {
+    // Preload hero backgrounds for all carousel and visible issues so switching or sliding is instant
+    const issuesToPreload = [...issues, ...visibleIssues];
+    for (const item of issuesToPreload) {
       if (item.hero?.mobileUrl && typeof window !== 'undefined') {
         const img = new window.Image();
         img.src = item.hero.mobileUrl;
@@ -310,7 +305,7 @@ export function ThisMonthFeatured({
         img.src = item.hero.desktopUrl;
       }
     }
-  }, [issues]);
+  }, [issues, visibleIssues]);
 
   // Start each filtered set at its newest issue.
   useEffect(() => {
@@ -1265,7 +1260,8 @@ function MobileScenicHero({ issue, eyebrow, monthName, bookmarked, onBookmark, o
   issue: ApiIssue; eyebrow: string; monthName: string; bookmarked: boolean; onBookmark: () => void; onPreview: () => void; onBookOpen:()=>void; animateEntrance: boolean; onReady: () => void; backgroundSrc?: string; theme?:HeroSceneTheme|null; buttonTheme?:HeroSceneTheme|null; coverPalette: CoverPalette; onCoverLoad:()=>void;
 }) {
   const animateOnMount=useRef(animateEntrance).current;
-  const [sceneReady,setSceneReady]=useState(!animateEntrance);
+  const [sceneReady,setSceneReady]=useState(false);
+  useEffect(()=>{setSceneReady(false);},[backgroundSrc]);
   const [previewPlacement,setPreviewPlacement]=useState<HeroPlacement|null>(null);
   useEffect(()=>{const receive=(event:MessageEvent)=>{if(event.origin!==window.location.origin||event.data?.type!=='hero-placement-preview'||event.data.device!=='phone')return;setPreviewPlacement(event.data.placement??null);};window.addEventListener('message',receive);return()=>window.removeEventListener('message',receive);},[]);
   const placement=previewPlacement??resolveHeroPlacement(theme??undefined,'phone');
@@ -1277,9 +1273,13 @@ function MobileScenicHero({ issue, eyebrow, monthName, bookmarked, onBookmark, o
   return <div data-hero-swipe className="flex flex-col bg-white md:hidden">
     <div style={sceneVariables} className="scenic-phone-scene relative h-[520px] xs:h-[560px] sm:h-[600px] overflow-hidden">
       <div className={cn('scenic-artboard scenic-artboard-phone',animateOnMount&&sceneReady&&'scenic-artboard-enter')}>
-        <ScenicBackground src={aimOctoberPhoneHero} media="(max-width: 767px)" sizes="100vw" className="object-cover" onReady={()=>{if(!backgroundSrc){setSceneReady(true);onReady();}}} />
-        {backgroundSrc && (
-          <ScenicBackground key={backgroundSrc} src={backgroundSrc} media="(max-width: 767px)" sizes="100vw" className="object-cover transition-opacity duration-300" animateEntrance={false} onReady={()=>{setSceneReady(true);onReady();}} />
+        {!sceneReady && (
+          <div aria-hidden="true" className="cover-shimmer absolute inset-0 z-[1] bg-gradient-to-b from-[#f7f2ea] via-[#f0e6d6] to-[#e6d5c1]" />
+        )}
+        {!backgroundSrc ? (
+          <ScenicBackground src={aimOctoberPhoneHero} media="(max-width: 767px)" sizes="100vw" className="object-cover" onReady={()=>{setSceneReady(true);onReady();}} />
+        ) : (
+          <ScenicBackground key={backgroundSrc} src={backgroundSrc} media="(max-width: 767px)" sizes="100vw" className="object-cover transition-opacity duration-300" onReady={()=>{setSceneReady(true);onReady();}} />
         )}
         <button
           type="button"
@@ -1362,7 +1362,8 @@ export function DesktopScenicHero({
 }) {
   const bookRef = useRef<HTMLButtonElement>(null);
   const animateOnMount=useRef(animateEntrance).current;
-  const [backgroundReady, setBackgroundReady] = useState(!animateEntrance);
+  const [backgroundReady, setBackgroundReady] = useState(false);
+  useEffect(()=>{setBackgroundReady(false);},[backgroundSrc]);
   const [previewPlacements,setPreviewPlacements]=useState<Partial<Record<'desktop'|'tablet',HeroPlacement>>>({});
   useEffect(()=>{const receive=(event:MessageEvent)=>{if(event.origin!==window.location.origin||event.data?.type!=='hero-placement-preview'||!['desktop','tablet'].includes(event.data.device))return;setPreviewPlacements(current=>({...current,[event.data.device]:event.data.placement??undefined}));};window.addEventListener('message',receive);return()=>window.removeEventListener('message',receive);},[]);
   const desktopPlacement=previewPlacements.desktop??resolveHeroPlacement(theme,'desktop');
@@ -1393,26 +1394,27 @@ export function DesktopScenicHero({
   return (
     <div data-hero-swipe style={sceneVariables} className={cn('scenic-hero relative hidden overflow-hidden md:block', compact ? 'min-h-[480px]' : 'min-h-[max(720px,56.28vw)]')}>
       <div className={cn('scenic-artboard scenic-artboard-landscape',animateOnMount&&backgroundReady&&'scenic-artboard-enter')}>
-        <ScenicBackground
-          src="/aim-oct-2026-hero.png"
-          media="(min-width: 768px)"
-          sizes="(min-width: 1024px) 1440px, 100vw"
-          className="scenic-hero-background object-cover"
-          onReady={() => {
-            if (!backgroundSrc || backgroundSrc === '/aim-oct-2026-hero.png') {
+        {!backgroundReady && (
+          <div aria-hidden="true" className="scenic-hero-background cover-shimmer absolute inset-0 z-[1] bg-gradient-to-b from-[#f7f2ea] via-[#f0e6d6] to-[#e6d5c1]" />
+        )}
+        {(!backgroundSrc || backgroundSrc === '/aim-oct-2026-hero.png') ? (
+          <ScenicBackground
+            src="/aim-oct-2026-hero.png"
+            media="(min-width: 768px)"
+            sizes="(min-width: 1024px) 1440px, 100vw"
+            className="scenic-hero-background object-cover"
+            onReady={() => {
               setBackgroundReady(true);
               onReady();
-            }
-          }}
-        />
-        {backgroundSrc && backgroundSrc !== '/aim-oct-2026-hero.png' && (
+            }}
+          />
+        ) : (
           <ScenicBackground
             key={backgroundSrc}
             src={backgroundSrc}
             media="(min-width: 768px)"
             sizes="(min-width: 1024px) 1440px, 100vw"
             className="scenic-hero-background object-cover transition-opacity duration-300"
-            animateEntrance={false}
             onReady={() => {
               setBackgroundReady(true);
               onReady();
