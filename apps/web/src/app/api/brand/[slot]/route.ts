@@ -16,7 +16,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ slot
         ? '/_next/image?url=%2Flogo.png&w=64&q=75'
         : slot === 'favicon' ? '/icon.png' : '/logo.png';
       return NextResponse.redirect(new URL(fallback, request.url), {
-        headers: { 'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800' },
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+        },
       });
     }
     const object = await getR2Client().send(new GetObjectCommand({ Bucket: r2Bucket(), Key: key }));
@@ -24,17 +27,30 @@ export async function GET(request: Request, { params }: { params: Promise<{ slot
     const bytes = await object.Body.transformToByteArray();
     if (bytes.length !== object.ContentLength) return new Response(null, { status: 503 });
     let image: Buffer = Buffer.from(bytes);
-    // Older uploaded logos were stored at 512 px. Header use needs only 128 px
-    // (40-56 CSS px at high density), so keep the public response small too.
+    // Header use needs only around 80-120 px height (40 CSS px at high density),
+    // keeping proportional width to maintain aspect ratio without letterboxing or squishing.
     if (slot === 'logo') {
       const source = await loadImage(image);
-      if (source.width > 128 || source.height > 128) {
-        const canvas = createCanvas(128, 128);
-        canvas.getContext('2d').drawImage(source, 0, 0, 128, 128);
+      const maxHeight = 120;
+      if (source.height > maxHeight) {
+        const scale = maxHeight / source.height;
+        const width = Math.round(source.width * scale);
+        const height = maxHeight;
+        const canvas = createCanvas(width, height);
+        canvas.getContext('2d').drawImage(source, 0, 0, width, height);
         image = canvas.toBuffer('image/png');
       }
     }
-    return new Response(Buffer.from(image), { headers: { 'Content-Type': 'image/png', 'Content-Length': String(image.length), 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
+    return new Response(Buffer.from(image), {
+      headers: {
+        'Content-Type': 'image/png',
+        'Content-Length': String(image.length),
+        'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'X-Content-Type-Options': 'nosniff',
+      },
+    });
   } catch { return new Response(null, { status: 503 }); }
 }
 

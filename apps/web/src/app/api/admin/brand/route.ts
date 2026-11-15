@@ -39,25 +39,43 @@ export async function POST(request: NextRequest) {
     if (!matchesRasterSignature(source, file.type)) return NextResponse.json({ error: 'Image content does not match its file type' }, { status: 400 });
     const imageSource = await loadImage(source).catch(() => null);
     if (!imageSource) return NextResponse.json({ error: 'Could not read this image. Try a standard PNG or JPEG.' }, { status: 400 });
-    if (imageSource.width < 128 || imageSource.height < 128 || imageSource.width * imageSource.height > 25_000_000)
-      return NextResponse.json({ error: 'Image must be a valid raster at least 128 × 128 pixels' }, { status: 400 });
+    if (imageSource.width < 32 || imageSource.height < 32 || imageSource.width * imageSource.height > 25_000_000)
+      return NextResponse.json({ error: 'Image must be a valid raster at least 32 × 32 pixels' }, { status: 400 });
     const keys: Partial<Record<BrandSlot, string>> = {};
     try {
       for (const slot of slots) {
-        const target = slot === 'social'
-          ? { width: 1200, height: 630 }
-          : { width: slot === 'favicon' ? 256 : 128, height: slot === 'favicon' ? 256 : 128 };
-        const canvas = createCanvas(target.width, target.height);
-        const scale = Math.min(target.width / imageSource.width, target.height / imageSource.height);
-        const width = Math.round(imageSource.width * scale);
-        const height = Math.round(imageSource.height * scale);
-        canvas.getContext('2d').drawImage(
-          imageSource,
-          Math.floor((target.width - width) / 2),
-          Math.floor((target.height - height) / 2),
-          width,
-          height,
-        );
+        let canvas;
+        if (slot === 'social') {
+          canvas = createCanvas(1200, 630);
+          const scale = Math.min(1200 / imageSource.width, 630 / imageSource.height);
+          const width = Math.round(imageSource.width * scale);
+          const height = Math.round(imageSource.height * scale);
+          canvas.getContext('2d').drawImage(
+            imageSource,
+            Math.floor((1200 - width) / 2),
+            Math.floor((630 - height) / 2),
+            width,
+            height,
+          );
+        } else if (slot === 'favicon') {
+          canvas = createCanvas(256, 256);
+          const scale = Math.min(256 / imageSource.width, 256 / imageSource.height);
+          const width = Math.round(imageSource.width * scale);
+          const height = Math.round(imageSource.height * scale);
+          canvas.getContext('2d').drawImage(
+            imageSource,
+            Math.floor((256 - width) / 2),
+            Math.floor((256 - height) / 2),
+            width,
+            height,
+          );
+        } else {
+          // 'logo': Preserve natural aspect ratio without empty top/bottom letterboxes
+          const targetHeight = Math.min(imageSource.height, 120);
+          const targetWidth = Math.min(800, Math.round(imageSource.width * (targetHeight / imageSource.height)));
+          canvas = createCanvas(targetWidth, targetHeight);
+          canvas.getContext('2d').drawImage(imageSource, 0, 0, targetWidth, targetHeight);
+        }
         const image = canvas.toBuffer('image/png');
         if (image.length > 2 * 1024 * 1024) throw new Error('Processed image is too large');
         const key = `brand/${slot}/${crypto.randomUUID()}.png`;

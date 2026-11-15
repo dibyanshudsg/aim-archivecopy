@@ -199,7 +199,7 @@ function AdminDashboardFrame({
             collapsed ? 'flex-col items-center gap-2 px-2 py-4' : 'items-center gap-3 px-6 py-5',
           )}
         >
-          <Image src="/api/brand/logo" unoptimized alt="AIM" width={32} height={32} className="shrink-0 rounded-lg" />
+          <Image src="/api/brand/logo" unoptimized alt="AIM" width={32} height={32} className="h-8 w-8 shrink-0 rounded-lg object-contain" />
           {!collapsed && (
             <div className="min-w-0 flex-1 overflow-hidden">
               <p className="font-heading truncate text-sm font-bold text-gray-900">AIM Archive</p>

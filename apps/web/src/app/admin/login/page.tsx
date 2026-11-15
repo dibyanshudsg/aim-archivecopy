@@ -73,9 +73,10 @@ export default function AdminLoginPage() {
             src="/api/brand/logo"
             unoptimized
             alt="AIM Archive"
-            width={56}
+            width={120}
             height={56}
-            className="mx-auto rounded-xl"
+            style={{ width: 'auto', height: 'auto' }}
+            className="mx-auto h-14 w-auto max-w-[200px] rounded-xl object-contain"
           />
           <h1 className="font-heading mt-4 text-2xl font-bold text-gray-900">Admin Panel</h1>
           <p className="mt-1 text-sm text-gray-500">AIM Archive Management</p>
