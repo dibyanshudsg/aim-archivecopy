@@ -865,9 +865,13 @@ function FeaturedSlide({
   const router = useRouter();
   const reduceMotion = useReducedMotion();
   const { toggle, isBookmarked } = useBookmarks();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const [infoDrawerOpen, setInfoDrawerOpen] = useState(false);
   const articleRef = useRef<HTMLElement>(null);
-  const bookmarked = isBookmarked(issue.id);
+  const bookmarked = mounted && isBookmarked(issue.id);
   const [coverLoaded,setCoverLoaded]=useState(false);
   const onCoverLoad=useCallback(()=>setCoverLoaded(true),[]);
   const coverPalette = useCoverPalette(issue.cover_image_url,coverLoaded);
@@ -1071,20 +1075,63 @@ function IssueInfoDrawer({
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-base font-semibold leading-snug text-gray-900">
-                    {issue.title}
-                  </h3>
                   {issue.theme && (
-                    <div className="mt-1.5 flex items-start gap-1.5">
-                      <span aria-hidden className="mt-2 h-3.5 w-[2px] shrink-0 rounded-full bg-gradient-to-b from-gold-500 to-flame-500" />
-                      <p className="font-heading pr-1 pt-0.5 text-sm font-bold leading-normal text-flame-800">
+                    <div className="flex items-start gap-1.5">
+                      <span aria-hidden className="mt-1.5 h-4 w-[2.5px] shrink-0 rounded-full bg-gradient-to-b from-gold-500 to-flame-500" />
+                      <h3 className="font-heading text-base font-bold leading-snug text-flame-800">
                         {issue.theme}
-                      </p>
+                      </h3>
                     </div>
                   )}
-                  <p className="mt-2 text-sm text-gray-500">
-                    {formatMonthYear(issue.month, issue.year)}
-                  </p>
+
+                  {(() => {
+                    const my = formatMonthYear(issue.month, issue.year);
+                    const titleHasMy = my && issue.title.toLowerCase().includes(my.toLowerCase());
+                    const magName = issue.magazines?.name;
+                    const displayPrefix = (magName && issue.title.toLowerCase().includes(magName.toLowerCase()) && titleHasMy)
+                      ? magName
+                      : (titleHasMy
+                          ? issue.title.replace(new RegExp(`\\s*[—–-]\\s*${my}\\b`, 'i'), '').trim()
+                          : issue.title);
+
+                    return (
+                      <>
+                        {/* Desktop (sm and up) */}
+                        <div className="hidden sm:block">
+                          {issue.theme ? (
+                            <p className="mt-1 text-sm font-medium text-gray-700">
+                              {issue.title}
+                            </p>
+                          ) : (
+                            <h3 className="text-base font-semibold leading-snug text-gray-900">
+                              {issue.title}
+                            </h3>
+                          )}
+                          {!titleHasMy && my && (
+                            <p className="mt-1 text-sm text-gray-500">{my}</p>
+                          )}
+                        </div>
+
+                        {/* Phone / Mobile */}
+                        <div className="sm:hidden">
+                          {issue.theme ? (
+                            <p className="mt-1 text-sm font-medium text-gray-700">
+                              {displayPrefix || issue.title}
+                            </p>
+                          ) : (
+                            <h3 className="text-base font-semibold leading-snug text-gray-900">
+                              {displayPrefix || issue.title}
+                            </h3>
+                          )}
+                          {my && (
+                            <p className="mt-0.5 text-xs font-medium text-gray-500">
+                              {my}
+                            </p>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -1315,7 +1362,7 @@ function MobileScenicHero({ issue, eyebrow, monthName, bookmarked, onBookmark, o
       <div className="mt-3 flex gap-2">
         {issue.pdf_url?<Link href={readerPath(issue.id)} prefetch={true} onClick={() => rememberReaderSource(issue.id,'shelf')} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white transition-colors duration-300" style={{background:issueColours.button,color:issueColours.buttonForeground}}><BookOpen className="h-4 w-4"/>Read issue</Link>:<span className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white transition-colors duration-300" style={{background:issueColours.button,color:issueColours.buttonForeground}}><BookOpen className="h-4 w-4"/>Embargoed</span>}
         <button type="button" onClick={onPreview} disabled={!issue.pdf_url} aria-label="Preview pages" className="flex h-11 w-11 items-center justify-center rounded-xl border bg-white/80 transition-colors duration-300 disabled:cursor-not-allowed disabled:opacity-50" style={{color:issueColours.heading,borderColor:issueColours.body}}><FileText className="h-5 w-5"/></button>
-        <button type="button" onClick={onBookmark} aria-label={bookmarked?'Remove bookmark':'Save to bookmarks'} className="flex h-11 w-11 items-center justify-center rounded-xl border bg-white/80 transition-colors duration-300" style={{color:issueColours.heading,borderColor:issueColours.body}}><Heart className={cn('h-5 w-5',bookmarked&&'fill-[#d97735] text-[#d97735]')}/></button>
+        <button type="button" onClick={onBookmark} suppressHydrationWarning aria-label={bookmarked?'Remove bookmark':'Save to bookmarks'} className="flex h-11 w-11 items-center justify-center rounded-xl border bg-white/80 transition-colors duration-300" style={{color:issueColours.heading,borderColor:issueColours.body}}><Heart className={cn('h-5 w-5',bookmarked&&'fill-[#d97735] text-[#d97735]')}/></button>
       </div>
     </div>
   </div>;
@@ -1458,7 +1505,7 @@ export function DesktopScenicHero({
           <button type="button" onClick={onPreview} disabled={!issue.pdf_url} style={{color:issueColours.heading,borderColor:issueColours.body}} className="scenic-secondary-action inline-flex min-h-12 items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#123e62] disabled:cursor-not-allowed disabled:opacity-50">
             <FileText className="h-5 w-5" /> Preview pages
           </button>
-          <button type="button" onClick={onBookmark} style={{color:issueColours.heading,borderColor:issueColours.body}} aria-label={bookmarked ? 'Remove bookmark' : 'Save to bookmarks'} aria-pressed={bookmarked} className="scenic-secondary-action flex h-12 w-12 items-center justify-center rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#123e62]">
+          <button type="button" onClick={onBookmark} suppressHydrationWarning style={{color:issueColours.heading,borderColor:issueColours.body}} aria-label={bookmarked ? 'Remove bookmark' : 'Save to bookmarks'} aria-pressed={bookmarked} className="scenic-secondary-action flex h-12 w-12 items-center justify-center rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#123e62]">
             <Heart className={cn('h-5 w-5', bookmarked && 'fill-[#d97735] text-[#d97735]')} />
           </button>
         </div>

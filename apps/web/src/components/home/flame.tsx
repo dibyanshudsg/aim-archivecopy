@@ -1,33 +1,84 @@
 'use client';
 
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 type FlameProps = {
   className?: string;
 };
 
+// Tracks across client navigation whether the user has left the home page in this session.
+// On browser refresh or fresh page load, this resets to false so the flame starts prominent.
+let hasNavigatedAwayFromHome = false;
+
 export function Flame({ className = '' }: FlameProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const heatRaw = useMotionValue(0);
-  const heat = useSpring(heatRaw, { stiffness: 140, damping: 20, mass: 0.4 });
+  const lastToggleTimeRef = useRef(0);
+
+  // Prominent on fresh page load/refresh of Home; becomes normal after navigating away and back.
+  const isInitiallyProminent = !hasNavigatedAwayFromHome;
+  const [prominent, setProminent] = useState(isInitiallyProminent);
+  const heatRaw = useMotionValue(isInitiallyProminent ? 1 : 0);
+  const heat = useSpring(heatRaw, { stiffness: 90, damping: 18, mass: 0.4 });
+
+  useEffect(() => {
+    // When the component unmounts (user leaves the Home page), mark that we've navigated away from home
+    return () => {
+      hasNavigatedAwayFromHome = true;
+    };
+  }, []);
+
+  const toggleFlame = (e?: React.SyntheticEvent) => {
+    const now = performance.now();
+    if (now - lastToggleTimeRef.current < 250) {
+      return;
+    }
+    lastToggleTimeRef.current = now;
+    if (e) {
+      e.stopPropagation();
+    }
+    setProminent((prev) => {
+      const next = !prev;
+      heatRaw.set(next ? 1 : 0);
+      return next;
+    });
+  };
 
   useEffect(() => {
     let rafId = 0;
     let lastEvent: MouseEvent | null = null;
+    let cachedRect: DOMRect | null = null;
+    let lastRectTime = 0;
+
+    const getRect = () => {
+      const now = performance.now();
+      if (!cachedRect || now - lastRectTime > 1200) {
+        if (containerRef.current) {
+          cachedRect = containerRef.current.getBoundingClientRect();
+          lastRectTime = now;
+        }
+      }
+      return cachedRect;
+    };
 
     const update = () => {
       rafId = 0;
-      const el = containerRef.current;
-      if (!el || !lastEvent) return;
-      const rect = el.getBoundingClientRect();
+      if (!lastEvent) return;
+      const rect = getRect();
+      if (!rect) return;
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2;
       const dx = lastEvent.clientX - cx;
       const dy = lastEvent.clientY - cy;
       const dist = Math.hypot(dx, dy);
       const threshold = 320;
-      heatRaw.set(Math.max(0, Math.min(1, 1 - dist / threshold)));
+      const proximity = Math.max(0, Math.min(1, 1 - dist / threshold));
+
+      if (prominent) {
+        heatRaw.set(1);
+      } else {
+        heatRaw.set(proximity);
+      }
     };
 
     const onMove = (e: MouseEvent) => {
@@ -35,39 +86,64 @@ export function Flame({ className = '' }: FlameProps) {
       if (!rafId) rafId = requestAnimationFrame(update);
     };
 
-    window.addEventListener('mousemove', onMove);
+    const handleScrollOrResize = () => {
+      cachedRect = null;
+    };
+
+    window.addEventListener('mousemove', onMove, { passive: true });
+    window.addEventListener('scroll', handleScrollOrResize, { passive: true });
+    window.addEventListener('resize', handleScrollOrResize, { passive: true });
     return () => {
       window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('scroll', handleScrollOrResize);
+      window.removeEventListener('resize', handleScrollOrResize);
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, [heatRaw]);
+  }, [heatRaw, prominent]);
 
   const hotHaloOpacity = useTransform(heat, [0, 1], [0, 0.95]);
-  const hotHaloScale = useTransform(heat, [0, 1], [0.85, 1.35]);
+  const hotHaloScale = useTransform(heat, [0, 1], [0.85, 1.25]);
   const hotOuterOpacity = useTransform(heat, [0, 0.1, 1], [0, 0.05, 0.95]);
   const hotInnerOpacity = useTransform(heat, [0, 0.25, 1], [0, 0.18, 0.9]);
 
   return (
     <div
       ref={containerRef}
-      className={`relative inline-flex items-end justify-center ${className}`}
-      aria-hidden
+      className={`relative inline-flex items-end justify-center cursor-pointer select-none transform-gpu ${className}`}
+      onClick={toggleFlame}
+      onTouchStart={toggleFlame}
+      onMouseEnter={() => {
+        if (!prominent) heatRaw.set(1);
+      }}
+      onMouseLeave={() => {
+        if (!prominent) heatRaw.set(0);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toggleFlame();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label="Flame of Aspiration"
+      aria-pressed={prominent}
     >
       <motion.div
-        className="pointer-events-none absolute inset-[-45%] rounded-full blur-2xl"
+        className="pointer-events-none absolute inset-[-30%] rounded-full blur-md transform-gpu will-change-transform"
         style={{
           background:
-            'radial-gradient(circle, rgba(244,180,80,0.55) 0%, rgba(244,162,97,0.22) 45%, rgba(244,162,97,0) 75%)',
+            'radial-gradient(circle, rgba(244,180,80,0.48) 0%, rgba(244,162,97,0.18) 45%, transparent 72%)',
         }}
-        animate={{ opacity: [0.55, 0.9, 0.55] }}
+        animate={{ opacity: [0.55, 0.85, 0.55] }}
         transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
       />
 
       <motion.div
-        className="pointer-events-none absolute inset-[-60%] rounded-full blur-2xl"
+        className="pointer-events-none absolute inset-[-42%] rounded-full blur-md transform-gpu will-change-transform"
         style={{
           background:
-            'radial-gradient(circle, rgba(255,80,30,0.85) 0%, rgba(255,135,40,0.5) 30%, rgba(255,200,90,0.22) 60%, rgba(255,200,90,0) 80%)',
+            'radial-gradient(circle, rgba(255,80,30,0.7) 0%, rgba(255,135,40,0.4) 30%, rgba(255,200,90,0.16) 55%, transparent 75%)',
           opacity: hotHaloOpacity,
           scale: hotHaloScale,
         }}
@@ -75,7 +151,7 @@ export function Flame({ className = '' }: FlameProps) {
 
       <motion.svg
         viewBox="0 0 100 140"
-        className="relative h-24 w-auto sm:h-28"
+        className="relative h-[92px] w-auto sm:h-[110px] transform-gpu will-change-transform"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         animate={{

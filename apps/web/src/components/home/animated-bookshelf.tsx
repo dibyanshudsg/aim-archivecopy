@@ -25,6 +25,7 @@ import { readerPath, rememberReaderSource } from '@/lib/reader-url';
 import { issueDetailPath } from '@/lib/issue-detail-url';
 import { formatMonthYear } from '@/lib/utils';
 import { configurePdfWorker } from '@/lib/pdf-worker-client';
+import { useBookmarks } from '@/lib/bookmarks-store';
 
 
 type PdfDocLike = import('pdfjs-dist').PDFDocumentProxy;
@@ -98,6 +99,12 @@ function IssueBook({
   const accent = accents[index % accents.length];
   const monthYear = formatMonthYear(issue.month, issue.year);
   const canPreview = canPreviewIssue(issue);
+  const bookmarkedIds = useBookmarks((s) => s.bookmarkedIds);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  const isBookmarked = mounted && bookmarkedIds.includes(issue.id);
   const [spreadStart, setSpreadStart] = useState(1);
   const [numPages, setNumPages] = useState(issue.page_count ?? 0);
   const [turning, setTurning] = useState<TurningSheet | null>(null);
@@ -401,10 +408,88 @@ function IssueBook({
           pdfError={pdfError}
         />
       ) : (
-        <ClosedIssueCover issue={issue} accent={accent} monthYear={monthYear} />
+        <ClosedIssueCover
+          issue={issue}
+          accent={accent}
+          monthYear={monthYear}
+          isBookmarked={isBookmarked}
+          index={index}
+        />
       )}
 
       <div className="absolute -bottom-1 left-3 right-3 h-2 rounded-full bg-black/[0.08]" />
+    </motion.div>
+  );
+}
+
+function WindBookmarkRibbon({ index = 0 }: { index?: number }) {
+  // Varied wind flutter speed and phase so each bookmark ribbon moves organically
+  const duration = 2.8 + (index % 5) * 0.45;
+  const delay = (index % 7) * 0.2;
+
+  return (
+    <motion.div
+      className="pointer-events-none absolute top-0 right-3 z-30 flex flex-col items-center drop-shadow-[0_2px_5px_rgba(0,0,0,0.32)]"
+      style={{ transformOrigin: 'top center' }}
+      animate={{
+        rotate: [0, 4.5, -3.5, 6, -2, 4, -4.5, 1.5, 0],
+        skewX: [0, 2.5, -2, 3, -1.5, 2, -2.5, 1, 0],
+        scaleX: [1, 0.95, 1.04, 0.96, 1.02, 0.97, 1.03, 0.98, 1],
+        y: [0, -0.6, 0.3, -1, 0.5, -0.3, 0.6, -0.2, 0],
+      }}
+      transition={{
+        duration,
+        repeat: Infinity,
+        ease: 'easeInOut',
+        delay,
+      }}
+      aria-label="Bookmarked issue"
+      title="Bookmarked"
+    >
+      <svg
+        width="22"
+        height="32"
+        viewBox="0 0 22 32"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <defs>
+          <linearGradient id={`ribbon-grad-${index}`} x1="0" y1="0" x2="22" y2="32" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#FFA439" />
+            <stop offset="35%" stopColor="#F97316" />
+            <stop offset="85%" stopColor="#EA580C" />
+            <stop offset="100%" stopColor="#C2410C" />
+          </linearGradient>
+          <linearGradient id={`ribbon-highlight-${index}`} x1="0" y1="0" x2="22" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="white" stopOpacity="0.45" />
+            <stop offset="25%" stopColor="white" stopOpacity="0.15" />
+            <stop offset="80%" stopColor="black" stopOpacity="0" />
+            <stop offset="100%" stopColor="black" stopOpacity="0.25" />
+          </linearGradient>
+        </defs>
+
+        {/* Ribbon body with swallowtail cutout */}
+        <path
+          d="M0 0 H22 V26 L11 20.5 L0 26 Z"
+          fill={`url(#ribbon-grad-${index})`}
+        />
+
+        {/* Inner highlight overlay */}
+        <path
+          d="M0 0 H22 V26 L11 20.5 L0 26 Z"
+          fill={`url(#ribbon-highlight-${index})`}
+        />
+
+        {/* Gold top stitch line */}
+        <line x1="2" y1="2" x2="20" y2="2" stroke="#FFF7ED" strokeWidth="1" strokeDasharray="2 1.5" strokeOpacity="0.85" />
+
+        {/* Heart / bookmark emblem */}
+        <path
+          d="M11 7.5 C11 7.5 8.2 5.2 6.5 7 C4.8 8.8 5.6 11.5 11 15 C16.4 11.5 17.2 8.8 15.5 7 C13.8 5.2 11 7.5 11 7.5 Z"
+          fill="#FFFFFF"
+          fillOpacity="0.95"
+        />
+      </svg>
     </motion.div>
   );
 }
@@ -413,10 +498,14 @@ function ClosedIssueCover({
   issue,
   accent,
   monthYear,
+  isBookmarked = false,
+  index = 0,
 }: {
   issue: ShelfIssue;
   accent: string;
   monthYear: string;
+  isBookmarked?: boolean;
+  index?: number;
 }) {
   const locked = issue.is_embargoed;
 
@@ -431,6 +520,7 @@ function ClosedIssueCover({
       transition={{ duration: 0.18 }}
     >
       <BookSpine accent={accent} />
+      {isBookmarked && <WindBookmarkRibbon index={index} />}
 
       {issue.cover_image_url ? (
         <ViewportCoverImage
@@ -1073,6 +1163,7 @@ function YearNavigator({
   readableCount,
   lockedCount,
   totalCount,
+  loading = false,
   onChange,
 }: {
   selectedYear: number;
@@ -1081,20 +1172,23 @@ function YearNavigator({
   readableCount: number;
   lockedCount: number;
   totalCount: number;
+  loading?: boolean;
   onChange: (year: number) => void;
 }) {
   const hasOnlyLocked = totalCount > 0 && lockedCount > 0 && readableCount === 0;
   const hasMixedAccess = lockedCount > 0 && readableCount > 0;
-  const statusLabel =
-    totalCount === 0
+  const statusLabel = loading
+    ? 'Loading editions…'
+    : totalCount === 0
       ? 'No editions on this shelf yet'
       : hasOnlyLocked
         ? 'Subscriber editions'
         : hasMixedAccess
           ? 'Mixed access year'
           : 'Public archive';
-  const countLabel =
-    totalCount === 0
+  const countLabel = loading
+    ? `Checking archive for ${selectedYear}…`
+    : totalCount === 0
       ? 'Choose another year'
       : hasOnlyLocked
         ? `${lockedCount} cover${lockedCount === 1 ? '' : 's'} visible`
@@ -1392,6 +1486,7 @@ export function AnimatedBookshelf({ issues: suppliedIssues, years, archiveGrowth
             readableCount={readableCount}
             lockedCount={lockedCount}
             totalCount={yearIssues.length}
+            loading={yearLoading}
             onChange={selectYear}
           />
 

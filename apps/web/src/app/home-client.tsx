@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { BookMarked } from 'lucide-react';
+import { BookOpenText } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { LatestSubscriberEditions } from '@/components/home/latest-subscriber-editions';
@@ -87,7 +87,7 @@ function ContinueReadingShelf({ featuredIds }: { featuredIds: string }) {
         <div className="mb-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-left">
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-gold-50 to-flame-50 text-flame-600">
-              <BookMarked className="h-4 w-4" />
+              <BookOpenText className="h-4 w-4" />
             </span>
             <div>
               <h2 className="font-heading text-lg font-bold text-gray-900">Continue reading</h2>
@@ -200,10 +200,10 @@ export function HomeClient({
 
           <section className="mx-auto mt-8 w-full max-w-[1440px] px-4 py-6 sm:mt-16 sm:px-6 sm:py-10 lg:px-10" aria-labelledby="archive-intro-title">
             <div className="relative mx-auto flex w-full max-w-5xl flex-col items-center">
-              <div className="flex justify-center sm:absolute sm:left-0 sm:top-1/2 sm:-translate-y-1/2" aria-hidden="true">
-                <Flame className="scale-[0.8] sm:scale-[0.9]" />
+              <div className="flex justify-center mb-3 sm:mb-0 sm:absolute sm:-left-8 md:-left-14 lg:-left-20 sm:top-1/2 sm:-translate-y-1/2" aria-hidden="true">
+                <Flame className="scale-[0.96] sm:scale-[1.02] lg:scale-[1.08]" />
               </div>
-              <div className="w-full min-w-0 max-w-4xl text-center sm:px-12 lg:px-16">
+              <div className="w-full min-w-0 max-w-4xl text-center sm:pl-14 sm:pr-8 md:pl-16 md:pr-10 lg:px-14">
                 <div className="mx-auto w-fit max-w-full">
                   <h2
                     id="archive-intro-title"
