@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckSquare, Download, X } from 'lucide-react';
+import { CheckSquare, Download, Trash2, X } from 'lucide-react';
 import type { ApiIssue } from '@/lib/api';
 import { useBulkSelection } from '@/lib/use-bulk-selection';
 import { formatFileSize } from '@/lib/utils';
@@ -13,9 +13,11 @@ interface Props {
   onDownload: () => void;
   /** Optional "select all visible" handler. Hidden when omitted. */
   onSelectAll?: () => void;
+  /** Optional "clear/remove selected" handler (e.g. for Bookmarks). */
+  onClearSelected?: () => void;
 }
 
-export function BulkActionBar({ issues, onDownload, onSelectAll }: Props) {
+export function BulkActionBar({ issues, onDownload, onSelectAll, onClearSelected }: Props) {
   const enabled = useBulkSelection((s) => s.enabled);
   const selectedIds = useBulkSelection((s) => s.selectedIds);
   const disable = useBulkSelection((s) => s.disable);
@@ -73,6 +75,19 @@ export function BulkActionBar({ issues, onDownload, onSelectAll }: Props) {
                 <span className="hidden sm:inline">
                   {allVisibleSelected ? 'Clear' : 'Select all'}
                 </span>
+              </button>
+            )}
+
+            {onClearSelected && (
+              <button
+                onClick={onClearSelected}
+                disabled={selectedCount === 0}
+                aria-label="Remove selected from bookmarks"
+                title="Remove selected bookmarks"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-red-200 bg-red-50/80 px-3.5 py-2 text-sm font-semibold text-red-600 transition-all hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>Clear</span>
               </button>
             )}
 

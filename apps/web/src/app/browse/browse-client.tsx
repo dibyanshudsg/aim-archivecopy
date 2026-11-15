@@ -6,15 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowUp,
   BookOpen,
-  Calendar,
-  Check,
   CheckSquare,
-  ChevronDown,
-  Eye,
   Filter,
-  HardDrive,
-  Layers3,
-  LockKeyhole,
 } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
@@ -26,10 +19,18 @@ import { IssueListView } from '@/components/browse/issue-list-view';
 import { Pagination } from '@/components/browse/pagination';
 import { BulkActionBar } from '@/components/browse/bulk-action-bar';
 import { BulkDownloadModal } from '@/components/browse/bulk-download-modal';
+import { SortMenu } from '@/components/browse/sort-menu';
+import { BrowseContextControls } from '@/components/browse/browse-context-controls';
+import { AvailabilityTabs, MobileAvailabilityMenu, availabilityOptions } from '@/components/browse/availability-tabs';
+import {
+  YearSeparator,
+  buildYearSeparatedGridItems,
+  BROWSE_GRID_COLUMNS,
+} from '@/components/browse/year-separator';
 import { fetchIssues, normalizeIssue } from '@/lib/api';
 import type { ApiIssue, ApiMagazine } from '@/lib/api';
 import { useBrowseFilters } from '@/lib/use-browse-filters';
-import type { BrowseFilters, SortColumn } from '@/lib/use-browse-filters';
+import type { BrowseFilters } from '@/lib/use-browse-filters';
 import type { AvailabilityFilter, BrowseFacets } from '@/lib/public-issues';
 import { useBulkSelection } from '@/lib/use-bulk-selection';
 import { downloadAsZip, type ZipDownloadProgress } from '@/lib/download-zip';
@@ -51,13 +52,6 @@ const PAGE_SIZE = 24;
 // Persist Browse responses across reloads/tabs; public-archive invalidation and
 // a quiet background refresh keep the next visit current after Admin edits.
 const CLIENT_BROWSE_CACHE_MS = 365 * 24 * 60 * 60_000;
-const BROWSE_GRID_COLUMNS = 'grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6';
-const BROWSE_GRID_FULL_SPAN = 'col-span-2 sm:col-span-3 md:col-span-3 lg:col-span-4 xl:col-span-6';
-
-type NormalizedIssue = ReturnType<typeof normalizeIssue>;
-type BrowseGridItem =
-  | { type: 'year'; year: number; key: string }
-  | { type: 'issue'; issue: NormalizedIssue; index: number };
 
 interface BrowseCacheEntry {
   issues: ApiIssue[];
@@ -67,31 +61,7 @@ interface BrowseCacheEntry {
   facets: BrowseFacets;
 }
 
-const availabilityOptions = [
-  {
-    id: 'read',
-    label: 'Read now',
-    helper: 'Public PDFs',
-    Icon: BookOpen,
-  },
-  {
-    id: 'subscriber',
-    label: 'Subscriber editions',
-    helper: 'Recent 5 years',
-    Icon: LockKeyhole,
-  },
-  {
-    id: 'all',
-    label: 'All editions',
-    helper: 'Mixed view',
-    Icon: Layers3,
-  },
-] satisfies Array<{
-  id: AvailabilityFilter;
-  label: string;
-  helper: string;
-  Icon: typeof BookOpen;
-}>;
+
 
 const availabilityCopy: Record<AvailabilityFilter, { heading: string; subtitle: string; countLabel: string }> = {
   read: {
@@ -777,7 +747,7 @@ function BrowseContent({
 
         {/* Grid area */}
         <div ref={gridTopRef} className="min-w-0 flex-1 px-4 py-5 sm:px-6 lg:px-8">
-          <div ref={toolbarRef} className="mb-4 hidden flex-col gap-3 md:flex lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center">
+          <div ref={toolbarRef} className="mb-4 hidden items-center justify-between gap-4 md:flex">
             <div className="flex min-w-0 items-center gap-3">
               {!panelOpen && (
                 <button
@@ -800,16 +770,18 @@ function BrowseContent({
               </span>
             </div>
 
-            {total > 0 && (
-              <Pagination
-                current={currentPage}
-                total={totalPages}
-                onChange={handlePageChange}
-                className="mt-0 hidden lg:flex"
-              />
+            {totalPages > 1 && (
+              <div className="hidden lg:flex">
+                <Pagination
+                  current={currentPage}
+                  total={totalPages}
+                  onChange={handlePageChange}
+                  className="mt-0"
+                />
+              </div>
             )}
 
-            <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:gap-3 lg:justify-self-end">
+            <div className="ml-auto flex flex-wrap items-center gap-2 sm:gap-3">
               <SortMenu sort={filters.sort} dir={filters.dir} onChange={setSortChoice} />
               <button
                 type="button"
@@ -921,414 +893,7 @@ function BrowseContent({
   );
 }
 
-function buildYearSeparatedGridItems(issues: NormalizedIssue[], showSeparators: boolean): BrowseGridItem[] {
-  const items: BrowseGridItem[] = [];
-  let previousYear: number | null = null;
 
-  issues.forEach((issue, index) => {
-    if (showSeparators && issue.year !== previousYear) {
-      items.push({ type: 'year', year: issue.year, key: `year-${issue.year}-${index}` });
-      previousYear = issue.year;
-    }
-
-    items.push({ type: 'issue', issue, index });
-  });
-
-  return items;
-}
-
-function BrowseContextControls({
-  activeFilterCount,
-  panelOpen,
-  onToggleFilters,
-  sort,
-  dir,
-  onSortChange,
-  selectionEnabled,
-  onToggleSelection,
-  view,
-  onViewChange,
-}: {
-  activeFilterCount: number;
-  panelOpen: boolean;
-  onToggleFilters: () => void;
-  sort: SortColumn | null;
-  dir: 'asc' | 'desc';
-  onSortChange: (sort: SortColumn | null, dir: 'asc' | 'desc') => void;
-  selectionEnabled: boolean;
-  onToggleSelection: () => void;
-  view: 'grid' | 'list';
-  onViewChange: (view: 'grid' | 'list') => void;
-}) {
-  return (
-    <div className="flex w-max shrink-0 items-center justify-between gap-0.5 min-[600px]:gap-2 sm:justify-end">
-      <button
-        type="button"
-        onClick={onToggleFilters}
-        data-filter-trigger
-        aria-expanded={panelOpen}
-        aria-label={panelOpen ? 'Close filters' : 'Open filters'}
-        title={panelOpen ? 'Close filters' : 'Open filters'}
-        className={`relative inline-flex h-11 min-w-11 items-center justify-center gap-2 rounded-xl border px-2.5 text-sm font-medium transition-colors sm:px-3 ${
-          panelOpen
-            ? 'border-flame-300 bg-flame-50 text-flame-700'
-            : 'border-flame-200 bg-white text-flame-700 hover:border-flame-300 hover:bg-flame-50'
-        }`}
-      >
-        <Filter className="h-4 w-4 shrink-0" />
-        <span className="hidden sm:inline">Filters</span>
-        {activeFilterCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-flame-600 px-1 text-[10px] font-bold text-white sm:static sm:h-auto sm:min-w-0 sm:px-1.5 sm:py-0.5">
-            {activeFilterCount > 99 ? '99+' : activeFilterCount}
-          </span>
-        )}
-      </button>
-
-      <SortMenu sort={sort} dir={dir} onChange={onSortChange} compact />
-
-      <button
-        type="button"
-        onClick={onToggleSelection}
-        className={`inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-xl border px-2.5 text-sm font-medium transition-colors xl:px-3 ${
-          selectionEnabled
-            ? 'border-flame-300 bg-flame-50 text-flame-700'
-            : 'border-flame-200 bg-white text-flame-700 shadow-sm hover:border-flame-300 hover:bg-flame-50'
-        }`}
-        aria-pressed={selectionEnabled}
-        aria-label={selectionEnabled ? 'Exit selection mode' : 'Select multiple issues'}
-        title={selectionEnabled ? 'Exit selection mode' : 'Select multiple issues to download'}
-      >
-        <CheckSquare className="h-4 w-4 shrink-0" />
-        <span className="hidden xl:inline">{selectionEnabled ? 'Done' : 'Select'}</span>
-      </button>
-
-      <ViewToggle view={view} onChange={onViewChange} compact />
-    </div>
-  );
-}
-
-function YearSeparator({ year }: { year: number }) {
-  return (
-    <div className={`${BROWSE_GRID_FULL_SPAN} py-2 sm:py-3`} aria-label={`Issues from ${year}`}>
-      <div className="flex items-center gap-4">
-        <span className="h-[2px] flex-1 rounded-full bg-gradient-to-r from-transparent via-gold-300 to-flame-300 shadow-[0_1px_0_rgba(255,255,255,0.9)]" />
-        <span className="relative inline-flex h-8 min-w-20 items-center justify-center rounded-full border border-flame-100 bg-white px-4 text-sm font-semibold tracking-wide text-flame-800 shadow-[0_8px_24px_rgba(120,84,28,0.08)] ring-1 ring-white">
-          <span className="absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent via-gold-300 to-transparent" />
-          {year}
-        </span>
-        <span className="h-[2px] flex-1 rounded-full bg-gradient-to-l from-transparent via-gold-300 to-flame-300 shadow-[0_1px_0_rgba(255,255,255,0.9)]" />
-      </div>
-    </div>
-  );
-}
-
-type SortOption = {
-  id: string;
-  label: string;
-  helper: string;
-  sort: SortColumn | null;
-  dir: 'asc' | 'desc';
-  Icon: typeof Calendar;
-};
-
-const sortOptions: SortOption[] = [
-  {
-    id: 'newest',
-    label: 'Newest first',
-    helper: 'Latest public issue date',
-    sort: null,
-    dir: 'desc',
-    Icon: Calendar,
-  },
-  {
-    id: 'oldest',
-    label: 'Oldest first',
-    helper: 'Start from earlier archives',
-    sort: 'date',
-    dir: 'asc',
-    Icon: Calendar,
-  },
-  {
-    id: 'reads',
-    label: 'Most read',
-    helper: 'Popular with readers',
-    sort: 'reads',
-    dir: 'desc',
-    Icon: Eye,
-  },
-  {
-    id: 'title',
-    label: 'Theme A-Z',
-    helper: 'Visible theme, then issue title',
-    sort: 'title',
-    dir: 'asc',
-    Icon: BookOpen,
-  },
-  {
-    id: 'magazine',
-    label: 'Magazine A-Z',
-    helper: 'Group by publication name',
-    sort: 'magazine',
-    dir: 'asc',
-    Icon: Layers3,
-  },
-  {
-    id: 'size',
-    label: 'Smallest file',
-    helper: 'Lighter downloads first',
-    sort: 'size',
-    dir: 'asc',
-    Icon: HardDrive,
-  },
-];
-
-function SortMenu({
-  sort,
-  dir,
-  onChange,
-  compact = false,
-}: {
-  sort: SortColumn | null;
-  dir: 'asc' | 'desc';
-  onChange: (sort: SortColumn | null, dir: 'asc' | 'desc') => void;
-  compact?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const activeOption =
-    sortOptions.find((option) => option.sort === sort && option.dir === dir) ??
-    sortOptions[0];
-  const ActiveIcon = activeOption.Icon;
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handlePointerDown(event: PointerEvent) {
-      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false);
-    }
-
-    window.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [open]);
-
-  return (
-    <div ref={menuRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className={`inline-flex h-11 items-center gap-2 rounded-xl border border-flame-200 bg-white px-3 text-sm font-medium text-flame-700 shadow-sm transition-colors hover:border-flame-300 hover:bg-flame-50 focus-visible:ring-2 focus-visible:ring-flame-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white sm:px-3.5 ${
-          compact ? 'min-w-11 justify-center' : ''
-        }`}
-      >
-        <ActiveIcon className="h-4 w-4" />
-        <span className={compact ? 'hidden min-[600px]:inline' : undefined}>Sort</span>
-        <span className={`${compact ? 'hidden xl:inline' : 'hidden sm:inline'} max-w-28 truncate text-gray-500`}>
-          {activeOption.label}
-        </span>
-        <ChevronDown
-          className={`h-4 w-4 shrink-0 text-gray-400 transition-transform duration-200 ${compact ? 'hidden min-[600px]:block' : ''} ${
-            open ? 'rotate-180 text-flame-600' : ''
-          }`}
-        />
-      </button>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            key="browse-sort-menu"
-            initial={{ opacity: 0, y: 8, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.98 }}
-            transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            className={`z-[60] overflow-hidden rounded-2xl border border-flame-100 bg-white p-1.5 shadow-[0_18px_48px_rgba(120,84,28,0.18)] ring-1 ring-white ${
-              compact
-                ? 'fixed top-16 right-4 left-4 sm:top-[72px] md:absolute md:top-auto md:right-0 md:left-auto md:mt-2 md:w-[min(21rem,calc(100vw-2rem))]'
-                : 'absolute left-0 mt-2 w-[min(21rem,calc(100vw-2rem))] sm:right-0 sm:left-auto'
-            }`}
-            role="menu"
-          >
-            {sortOptions.map((option) => {
-              const active = option.id === activeOption.id;
-              const Icon = option.Icon;
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={active}
-                  onClick={() => {
-                    onChange(option.sort, option.dir);
-                    setOpen(false);
-                  }}
-                  className={`relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${
-                    active
-                      ? 'text-flame-800'
-                      : 'text-gray-600 hover:bg-flame-50/80 hover:text-flame-800'
-                  }`}
-                >
-                  {active && (
-                    <motion.span
-                      layoutId="browse-sort-active"
-                      className="absolute inset-0 rounded-xl bg-gradient-to-r from-gold-50 to-flame-50"
-                      transition={{ type: 'spring', stiffness: 430, damping: 34 }}
-                    />
-                  )}
-                  <span
-                    className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                      active ? 'bg-white text-flame-700 shadow-sm' : 'bg-gray-50 text-gray-500'
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span className="relative min-w-0 flex-1">
-                    <span className="block text-sm font-semibold leading-tight">
-                      {option.label}
-                    </span>
-                    <span className="mt-0.5 block truncate text-xs text-gray-600">
-                      {option.helper}
-                    </span>
-                  </span>
-                  <span
-                    className={`relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-                      active ? 'bg-flame-500 text-white' : 'text-transparent'
-                    }`}
-                  >
-                    <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                  </span>
-                </button>
-              );
-            })}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function MobileAvailabilityMenu({
-  value,
-  onChange,
-  onPrefetch,
-  searchBarOpen,
-}: {
-  value: AvailabilityFilter;
-  onChange: (availability: AvailabilityFilter) => void;
-  onPrefetch: (availability: AvailabilityFilter) => void;
-  searchBarOpen: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const selected = availabilityOptions.find((option) => option.id === value) ?? availabilityOptions[0];
-  const SelectedIcon = selected.Icon;
-
-  useEffect(() => setOpen(false), [searchBarOpen]);
-
-  useEffect(() => {
-    if (!open) return;
-    const closeOnOutside = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('pointerdown', closeOnOutside);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.removeEventListener('pointerdown', closeOnOutside);
-      document.removeEventListener('keydown', closeOnEscape);
-    };
-  }, [open]);
-
-  return (
-    <div ref={menuRef} className="relative">
-      <button type="button" aria-expanded={open} aria-haspopup="listbox" aria-label={`Edition availability: ${selected.label}`} onClick={() => setOpen((current) => !current)} className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-flame-200 bg-white px-3 text-left text-gray-800 shadow-sm transition-colors hover:bg-flame-50 focus-visible:ring-2 focus-visible:ring-flame-300">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-flame-50 text-flame-700"><SelectedIcon className="h-4 w-4" /></span>
-        <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{selected.label}</span><span className="block text-xs text-gray-600">{selected.helper}</span></span>
-        <ChevronDown className={`h-4 w-4 text-flame-700 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-      </button>
-      <AnimatePresence>
-        {open && <motion.div role="listbox" aria-label="Edition availability" initial={{ opacity: 0, y: -8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.98 }} transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }} className="absolute inset-x-0 top-full z-40 mt-2 overflow-hidden rounded-xl border border-flame-100 bg-white p-1.5 shadow-[0_14px_36px_rgba(120,84,28,0.14)]">
-          {availabilityOptions.map(({ id, label, helper, Icon }) => <button key={id} type="button" role="option" aria-selected={value === id} onPointerEnter={() => onPrefetch(id)} onFocus={() => onPrefetch(id)} onClick={() => { onChange(id); setOpen(false); }} className={`flex min-h-12 w-full items-center gap-3 rounded-lg px-2.5 text-left transition-colors ${value === id ? 'bg-flame-50 text-flame-800' : 'text-gray-700 hover:bg-warm-white'}`}>
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-flame-700"><Icon className="h-4 w-4" /></span>
-            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{label}</span><span className="block text-xs text-gray-600">{helper}</span></span>
-            {value === id && <Check className="h-4 w-4 text-flame-700" />}
-          </button>)}
-        </motion.div>}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function AvailabilityTabs({
-  value,
-  onChange,
-  onPrefetch,
-}: {
-  value: AvailabilityFilter;
-  onChange: (availability: AvailabilityFilter) => void;
-  onPrefetch: (availability: AvailabilityFilter) => void;
-}) {
-  return (
-    <div className="w-full max-w-xl rounded-2xl border border-flame-100 bg-white/90 p-1.5 shadow-[0_12px_34px_rgba(120,84,28,0.10)] ring-1 ring-white sm:w-[492px] sm:shrink-0">
-      <div className="grid grid-cols-1 gap-1 sm:grid-cols-3">
-        {availabilityOptions.map(({ id, label, helper, Icon }) => {
-          const active = value === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              onPointerEnter={() => onPrefetch(id)}
-              onFocus={() => onPrefetch(id)}
-              onClick={() => onChange(id)}
-              aria-pressed={active}
-              className={`relative isolate flex h-[52px] min-w-0 items-center justify-start gap-2 overflow-hidden rounded-xl px-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-flame-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white sm:h-[58px] sm:flex-col sm:justify-center sm:gap-0.5 sm:px-2 sm:text-center ${
-                active
-                  ? 'text-white'
-                  : 'text-gray-600 hover:bg-flame-50/80 hover:text-flame-800'
-              }`}
-            >
-              {active && (
-                <motion.span
-                  layoutId="browse-availability-active"
-                  className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-r from-gold-500 to-flame-500 shadow-[0_10px_24px_rgba(190,140,46,0.24)]"
-                  transition={{ type: 'spring', stiffness: 430, damping: 34 }}
-                />
-              )}
-              <span
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:h-auto sm:w-auto sm:rounded-none ${
-                  active ? 'bg-white/15 text-white sm:bg-transparent' : 'bg-flame-50 text-flame-700/75 sm:bg-transparent'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-              </span>
-              <span className="min-w-0 flex-1 sm:flex-none">
-                <span className="block truncate text-sm font-semibold leading-snug sm:inline sm:whitespace-nowrap sm:text-[13px]">
-                  {label}
-                </span>
-                <span className={`block text-[11px] font-medium sm:hidden ${active ? 'text-white' : 'text-gray-600'}`}>
-                  {helper}
-                </span>
-              </span>
-              <span className={`hidden whitespace-nowrap text-[11px] font-medium leading-none sm:block ${active ? 'text-white' : 'text-gray-600'}`}>
-                {helper}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 function browseCacheKey(
   filters: BrowseFilters,
