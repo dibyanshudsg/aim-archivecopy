@@ -1347,12 +1347,29 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
                 </button>
 
               <div className="hidden items-center lg:flex">
-              <ShareIssueButton issue={issue} />
-              <SharePageButton
-                issue={issue}
-                pageNumber={currentPage}
-                renderPage={renderPageToBlob}
-              />
+                <ShareIssueButton issue={issue} />
+                <SharePageButton
+                  issue={issue}
+                  pageNumber={currentPage}
+                  renderPage={renderPageToBlob}
+                />
+                <button
+                  type="button"
+                  onClick={() => toggle(issue.id)}
+                  aria-label={bookmarked ? 'Remove bookmark' : 'Bookmark issue'}
+                  title={bookmarked ? 'Saved to bookmarks' : 'Bookmark this issue'}
+                  className={`flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
+                    bookmarked
+                      ? 'text-red-500 hover:bg-white hover:text-red-600'
+                      : 'text-gray-700 hover:bg-white hover:text-flame-700'
+                  }`}
+                >
+                  <Heart
+                    className={`h-4 w-4 transition-transform active:scale-125 ${
+                      bookmarked ? 'fill-red-500 text-red-500' : ''
+                    }`}
+                  />
+                </button>
               </div>
               <button
                 onClick={() => setFindDrawerOpen(true)}
@@ -2539,20 +2556,63 @@ function IssueInfoDrawer({
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-base font-semibold leading-snug text-gray-900">
-                    {issue.title}
-                  </h3>
                   {issue.theme && (
-                    <div className="mt-1.5 flex items-start gap-1.5">
-                      <span aria-hidden className="mt-2 h-3.5 w-[2px] shrink-0 rounded-full bg-gradient-to-b from-gold-500 to-flame-500" />
-                      <p className="font-heading pr-1 pt-0.5 text-sm font-bold leading-normal text-flame-800">
+                    <div className="flex items-start gap-1.5">
+                      <span aria-hidden className="mt-1.5 h-4 w-[2.5px] shrink-0 rounded-full bg-gradient-to-b from-gold-500 to-flame-500" />
+                      <h3 className="font-heading text-base font-bold leading-snug text-flame-800">
                         {issue.theme}
-                      </p>
+                      </h3>
                     </div>
                   )}
-                  <p className="mt-2 text-sm text-gray-500">
-                    {formatMonthYear(issue.month, issue.year)}
-                  </p>
+
+                  {(() => {
+                    const my = formatMonthYear(issue.month, issue.year);
+                    const titleHasMy = my && issue.title.toLowerCase().includes(my.toLowerCase());
+                    const magName = issue.magazine?.name;
+                    const displayPrefix = (magName && issue.title.toLowerCase().includes(magName.toLowerCase()) && titleHasMy)
+                      ? magName
+                      : (titleHasMy
+                          ? issue.title.replace(new RegExp(`\\s*[—–-]\\s*${my}\\b`, 'i'), '').trim()
+                          : issue.title);
+
+                    return (
+                      <>
+                        {/* Desktop (sm and up) */}
+                        <div className="hidden sm:block">
+                          {issue.theme ? (
+                            <p className="mt-1 text-sm font-medium text-gray-700">
+                              {issue.title}
+                            </p>
+                          ) : (
+                            <h3 className="text-base font-semibold leading-snug text-gray-900">
+                              {issue.title}
+                            </h3>
+                          )}
+                          {!titleHasMy && my && (
+                            <p className="mt-1 text-sm text-gray-500">{my}</p>
+                          )}
+                        </div>
+
+                        {/* Phone / Mobile */}
+                        <div className="sm:hidden">
+                          {issue.theme ? (
+                            <p className="mt-1 text-sm font-medium text-gray-700">
+                              {displayPrefix || issue.title}
+                            </p>
+                          ) : (
+                            <h3 className="text-base font-semibold leading-snug text-gray-900">
+                              {displayPrefix || issue.title}
+                            </h3>
+                          )}
+                          {my && (
+                            <p className="mt-0.5 text-xs font-medium text-gray-500">
+                              {my}
+                            </p>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
                   <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100">
                     <div
                       className="h-full rounded-full bg-gradient-to-r from-gold-500 to-flame-500"

@@ -165,14 +165,22 @@ export function IssueDetailClient({ initialIssue, navigation, relatedSection }: 
     <div className="flex min-h-screen flex-col">
       <Header navigation={navigation} />
       <main className="flex-1">
-        <div className="border-b border-gray-100 px-6 py-3 lg:px-8">
-          <div className="mx-auto flex w-full max-w-[1440px] items-center gap-2 text-sm text-gray-500">
-            <Link href="/browse" prefetch={true} className="flex items-center gap-1 hover:text-flame-600">
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Browse
+        <div className="border-b border-gray-100 bg-white/70 px-4 py-2 sm:px-6 lg:px-8">
+          <div className="mx-auto flex w-full max-w-[1440px] items-center gap-2.5 text-sm">
+            <Link
+              href="/browse"
+              prefetch={true}
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-flame-50 hover:text-flame-700"
+              aria-label="Back to browse"
+              title="Back to browse"
+            >
+              <ArrowLeft className="h-5 w-5" />
+              <span>Browse</span>
             </Link>
-            <span>/</span>
-            <span lang={issue.magazine.language === 'hindi' ? 'hi' : undefined} className="text-gray-900">{issue.title}</span>
+            <span className="text-gray-300">/</span>
+            <span lang={issue.magazine.language === 'hindi' ? 'hi' : undefined} className="truncate font-medium text-gray-800">
+              {issue.title}
+            </span>
           </div>
         </div>
 

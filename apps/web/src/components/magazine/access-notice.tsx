@@ -99,63 +99,84 @@ export function AccessNotice({
         </button>
 
         {subscriptionDetailsOpen && (
-          <div className="mt-3 rounded-xl border border-flame-200/80 bg-white/90 p-4 text-xs leading-relaxed text-gray-700 shadow-2xs">
-            <h3 className="font-heading text-xs font-bold uppercase tracking-wider text-flame-800">
+          <div className="mt-3 rounded-xl border border-flame-200/80 bg-white/90 p-4 sm:p-5 text-sm leading-relaxed text-gray-700 shadow-2xs">
+            <h3 className="font-heading text-xs sm:text-sm font-bold uppercase tracking-wider text-flame-800">
               Subscription &amp; Membership Information
             </h3>
-            <p className="mt-1 text-gray-600">
+            <p className="mt-1.5 text-sm text-gray-700">
               You can receive current and recent monthly editions of <em>All India Magazine</em> directly by mail or digital communication:
             </p>
 
-            <ul className="mt-2.5 space-y-1.5 list-disc pl-4 text-gray-700">
+            <ul className="mt-3 space-y-2 list-disc pl-5 text-sm text-gray-700">
               <li>
-                <strong>Inland Subscription:</strong> ₹200 for 1 year (Monthly issues dispatched to your registered address).
+                <strong className="font-semibold text-gray-900">Inland Subscription:</strong> ₹200 for 1 year (Monthly issues dispatched to your registered address).
               </li>
               <li>
-                <strong>Overseas Subscription:</strong> US $25 per year (via Airmail).
+                <strong className="font-semibold text-gray-900">Overseas Subscription:</strong> US $25 per year (via Airmail).
               </li>
               <li>
-                <strong>Sri Aurobindo Society Membership:</strong> Choose the <em>&ldquo;Member with Magazine&rdquo;</em> option when enrolling or renewing. Available in English, Hindi (<em>Agnishikha</em>), and other regional languages.
+                <strong className="font-semibold text-gray-900">Sri Aurobindo Society Membership:</strong> Choose the <em>&ldquo;Member with Magazine&rdquo;</em> option when enrolling or renewing. Available in English, Hindi (<em>Agnishikha</em>), and other regional languages.
               </li>
             </ul>
 
-            <div className="mt-3.5 flex flex-wrap gap-2.5 pt-2 border-t border-flame-100">
+            <div className="mt-4 flex flex-col items-center sm:flex-row sm:flex-wrap sm:items-start sm:justify-start gap-2.5 pt-3.5 border-t border-flame-200/70">
               <a
                 href="https://aurosociety.org/site/login/memberships"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-flame-50 px-2.5 py-1.5 font-semibold text-flame-800 hover:bg-flame-100 transition-colors"
+                className="group flex w-full max-w-xs sm:w-auto sm:inline-flex items-center justify-center sm:justify-start gap-2.5 rounded-xl border border-flame-200/90 bg-white px-3.5 py-2 text-xs sm:text-sm font-semibold text-gray-800 shadow-2xs transition-all hover:border-flame-300 hover:bg-flame-50/70 hover:text-flame-900 hover:shadow-xs active:scale-[0.98]"
               >
-                <span>Online Membership Portal</span>
-                <ExternalLink className="h-3 w-3" />
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-flame-100 bg-flame-50/80 p-0.5 shadow-2xs transition-colors group-hover:border-flame-200 group-hover:bg-white">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/favicons/aurosociety.png"
+                    alt=""
+                    className="h-4 w-4 rounded-xs object-contain"
+                  />
+                </span>
+                <span className="truncate">Online Membership Portal</span>
+                <ExternalLink className="h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform duration-150 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-flame-600" />
               </a>
 
               <a
                 href="https://www.sabda.in/m/catalog/booksearch.php?category_key=X&itmtype=Journals"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-flame-50 px-2.5 py-1.5 font-semibold text-flame-800 hover:bg-flame-100 transition-colors"
+                className="group flex w-full max-w-xs sm:w-auto sm:inline-flex items-center justify-center sm:justify-start gap-2.5 rounded-xl border border-flame-200/90 bg-white px-3.5 py-2 text-xs sm:text-sm font-semibold text-gray-800 shadow-2xs transition-all hover:border-flame-300 hover:bg-flame-50/70 hover:text-flame-900 hover:shadow-xs active:scale-[0.98]"
               >
-                <span>SABDA Journal Catalog</span>
-                <ExternalLink className="h-3 w-3" />
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-flame-100 bg-flame-50/80 p-0.5 shadow-2xs transition-colors group-hover:border-flame-200 group-hover:bg-white">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/favicons/sabda.png"
+                    alt=""
+                    className="h-4 w-4 rounded-xs object-contain"
+                  />
+                </span>
+                <span className="truncate">SABDA Journal Catalog</span>
+                <ExternalLink className="h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform duration-150 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-flame-600" />
               </a>
 
               <a
                 href="https://cms.aurosociety.org/kcfinder/images/files/membership-form-bymail.pdf"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-flame-50 px-2.5 py-1.5 font-semibold text-flame-800 hover:bg-flame-100 transition-colors"
+                className="group flex w-full max-w-xs sm:w-auto sm:inline-flex items-center justify-center sm:justify-start gap-2.5 rounded-xl border border-flame-200/90 bg-white px-3.5 py-2 text-xs sm:text-sm font-semibold text-gray-800 shadow-2xs transition-all hover:border-flame-300 hover:bg-flame-50/70 hover:text-flame-900 hover:shadow-xs active:scale-[0.98]"
               >
-                <Download className="h-3 w-3" />
-                <span>Mail-in Form (PDF)</span>
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-flame-100 bg-flame-50/80 p-0.5 shadow-2xs transition-colors group-hover:border-flame-200 group-hover:bg-white">
+                  <Download className="h-3.5 w-3.5 text-flame-700" />
+                </span>
+                <span className="truncate">Mail-in Form (PDF)</span>
+                <ExternalLink className="h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform duration-150 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-flame-600" />
               </a>
 
               <a
                 href="mailto:membership@aurosociety.org"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-flame-50 px-2.5 py-1.5 font-semibold text-flame-800 hover:bg-flame-100 transition-colors"
+                className="group flex w-full max-w-xs sm:w-auto sm:inline-flex items-center justify-center sm:justify-start gap-2.5 rounded-xl border border-flame-200/90 bg-white px-3.5 py-2 text-xs sm:text-sm font-semibold text-gray-800 shadow-2xs transition-all hover:border-flame-300 hover:bg-flame-50/70 hover:text-flame-900 hover:shadow-xs active:scale-[0.98]"
               >
-                <Mail className="h-3 w-3" />
-                <span>membership@aurosociety.org</span>
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-flame-100 bg-flame-50/80 p-0.5 shadow-2xs transition-colors group-hover:border-flame-200 group-hover:bg-white">
+                  <Mail className="h-3.5 w-3.5 text-flame-700" />
+                </span>
+                <span className="truncate">membership@aurosociety.org</span>
               </a>
             </div>
           </div>
