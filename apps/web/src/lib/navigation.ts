@@ -121,7 +121,6 @@ const DEFAULT_ITEMS: Array<Omit<NavigationItem, 'created_at' | 'updated_at' | 'l
   item('nav-footer-magazines-aim', 'footer_magazines', 'All India Magazine', 'route', '/browse?magazine=all-india-magazine', 0),
   item('nav-footer-magazines-agnishikha', 'footer_magazines', 'Agnishikha', 'route', '/browse?magazine=agnishikha', 1),
   item('nav-footer-about-sas', 'footer_about', 'Sri Aurobindo Society', 'external', 'https://aurosociety.org', 0, { opens_new_tab: true }),
-  item('nav-footer-about-aim', 'footer_about', 'AIM Website', 'external', 'https://aim.aurosociety.org', 1, { opens_new_tab: true }),
 ];
 
 export function defaultPublicNavigation(): PublicNavigation {

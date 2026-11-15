@@ -17,7 +17,9 @@ export function Footer({ navigation }: { navigation?: PublicNavigation }) {
   const publicNavigation = navigation ?? defaultPublicNavigation();
   const archiveLinks = publicNavigation.menus.footer_archive.items;
   const magazineLinks = publicNavigation.menus.footer_magazines.items;
-  const aboutLinks = publicNavigation.menus.footer_about.items.filter((item) => !item.href.startsWith('/admin'));
+  const aboutLinks = publicNavigation.menus.footer_about.items.filter(
+    (item) => !item.href.startsWith('/admin') && item.label !== 'AIM Website' && !item.href.includes('aim.aurosociety.org')
+  );
 
   useEffect(() => {
     fetch('/api/site-settings')
