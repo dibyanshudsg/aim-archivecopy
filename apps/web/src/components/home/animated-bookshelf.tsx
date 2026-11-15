@@ -1379,7 +1379,7 @@ export function AnimatedBookshelf({ issues: suppliedIssues, years, archiveGrowth
             <Link
               href={browseHref}
               prefetch={true}
-              className="inline-flex min-h-11 items-center justify-center justify-self-center rounded-lg border border-flame-200 bg-white px-4 py-2 text-sm font-semibold text-flame-700 transition-colors hover:border-flame-300 hover:bg-flame-50 lg:justify-self-end"
+              className="inline-flex min-h-11 items-center justify-center justify-self-center rounded-xl bg-gradient-to-r from-gold-500 to-flame-500 px-5 py-2 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(190,140,46,0.22)] transition-all hover:from-gold-600 hover:to-flame-600 hover:shadow-[0_12px_24px_rgba(229,86,31,0.24)] active:scale-[0.98] lg:justify-self-end"
             >
               Browse all
             </Link>
