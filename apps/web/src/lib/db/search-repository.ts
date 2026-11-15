@@ -128,14 +128,15 @@ export async function searchIssueMetadata(input: SearchInput): Promise<MetadataS
 
 export async function listSearchTopics(input: SearchInput): Promise<string[]> {
   const filters = buildSearchFilters(input, [...await getLiveHeroIssueIds()]);
+  const limit = Math.max(1, Math.min(input.limit ?? 100, 300));
   const result = await getDb().execute({
     sql: `SELECT trim(topic.value) AS topic, count(DISTINCT i.id) AS uses
       FROM issues i JOIN json_each(i.topics_json) topic ON true
       WHERE ${releasedIssueSql('i')} AND ${supportedAssetSql('i.pdf_url')}
         AND topic.type = 'text' AND length(trim(topic.value)) BETWEEN 1 AND 100
         ${filters.sql}
-      GROUP BY trim(topic.value) ORDER BY uses DESC, topic COLLATE NOCASE LIMIT 12`,
-    args: filters.args,
+      GROUP BY trim(topic.value) ORDER BY uses DESC, topic COLLATE NOCASE LIMIT ?`,
+    args: [...filters.args, limit],
   });
   return result.rows.map((row) => String(row.topic));
 }

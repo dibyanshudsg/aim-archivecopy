@@ -104,7 +104,14 @@ export async function GET(request: NextRequest) {
 
   try {
   if (suggestions) {
-    const topics = await listSearchTopics({ query: '', magazineId, yearFrom, yearTo, availability });
+    const scope = request.nextUrl.searchParams.get('scope');
+    const limitParam = request.nextUrl.searchParams.get('limit');
+    const limit = limitParam ? parseInt(limitParam, 10) : 100;
+    const topics = await listSearchTopics(
+      scope === 'all'
+        ? { query: '', limit: isNaN(limit) ? 100 : limit }
+        : { query: '', magazineId, yearFrom, yearTo, availability, limit: isNaN(limit) ? 100 : limit },
+    );
     return NextResponse.json({ topics }, { headers: { 'Cache-Control': 'no-store' } });
   }
   const [ftsResults, metaIssues] = await Promise.all([
