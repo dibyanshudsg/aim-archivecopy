@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ViewportCoverImage } from '@/components/magazine/viewport-cover-image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { BookOpen, Check, FileText, Heart, Lock, Share2 } from 'lucide-react';
+import { BookOpen, Check, FileText, Heart, Lock, Share2, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { IssueWithMagazine } from '@aim-archive/shared';
 import { LANGUAGE_NAMES } from '@aim-archive/shared';
@@ -247,19 +247,43 @@ export function IssueCard({ issue, index = 0, source = 'browse' }: IssueCardProp
           )}
         >
           {issue.isEmbargoed ? (
-            // Embargoed: route to details only. The date chip on the cover
-            // carries the availability promise; this button is the action.
-            <Link
-              href={detailHref}
-              prefetch={true}
-              onPointerEnter={prepareDetails}
-              onPointerDown={prepareDetails}
-              onFocus={prepareDetails}
-              className="relative z-20 flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-flame-200 bg-flame-50/60 py-2 text-xs font-semibold text-flame-700 transition-colors hover:border-flame-300 hover:bg-flame-50"
-            >
-              <Lock className="h-3.5 w-3.5" />
-              View Details
-            </Link>
+            source === 'bookmarks' ? (
+              <div className="flex w-full gap-1.5">
+                <Link
+                  href={detailHref}
+                  prefetch={true}
+                  className="relative z-20 flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-flame-200 bg-flame-50/60 py-2 text-xs font-semibold text-flame-700 transition-colors hover:border-flame-300 hover:bg-flame-50"
+                >
+                  <Lock className="h-3.5 w-3.5" />
+                  Details
+                </Link>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggle(issue.id);
+                  }}
+                  className="relative z-20 flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-red-300 bg-white py-2 text-xs font-semibold text-red-600 transition-colors hover:border-red-400 hover:bg-red-50"
+                  aria-label={`Remove ${issue.title} from bookmarks`}
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                  Clear
+                </button>
+              </div>
+            ) : (
+              <Link
+                href={detailHref}
+                prefetch={true}
+                onPointerEnter={prepareDetails}
+                onPointerDown={prepareDetails}
+                onFocus={prepareDetails}
+                className="relative z-20 flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-flame-200 bg-flame-50/60 py-2 text-xs font-semibold text-flame-700 transition-colors hover:border-flame-300 hover:bg-flame-50"
+              >
+                <Lock className="h-3.5 w-3.5" />
+                View Details
+              </Link>
+            )
           ) : (
             <>
               <Link
@@ -271,17 +295,33 @@ export function IssueCard({ issue, index = 0, source = 'browse' }: IssueCardProp
                 <BookOpen className="h-3.5 w-3.5" />
                 Read
               </Link>
-              <Link
-                href={detailHref}
-                prefetch={true}
-                onPointerEnter={prepareDetails}
-                onPointerDown={prepareDetails}
-                onFocus={prepareDetails}
-                className="relative z-20 flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 py-2 text-xs font-semibold text-gray-700 transition-colors hover:border-flame-300 hover:bg-flame-50"
-              >
-                <FileText className="h-3.5 w-3.5" />
-                Details
-              </Link>
+              {source === 'bookmarks' ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggle(issue.id);
+                  }}
+                  className="relative z-20 flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-red-300 bg-white py-2 text-xs font-semibold text-red-600 transition-colors hover:border-red-400 hover:bg-red-50"
+                  aria-label={`Remove ${issue.title} from bookmarks`}
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                  Clear
+                </button>
+              ) : (
+                <Link
+                  href={detailHref}
+                  prefetch={true}
+                  onPointerEnter={prepareDetails}
+                  onPointerDown={prepareDetails}
+                  onFocus={prepareDetails}
+                  className="relative z-20 flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 py-2 text-xs font-semibold text-gray-700 transition-colors hover:border-flame-300 hover:bg-flame-50"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  Details
+                </Link>
+              )}
             </>
           )}
         </div>
