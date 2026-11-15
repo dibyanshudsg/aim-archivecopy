@@ -198,7 +198,7 @@ export function HomeClient({
             onPreviewChange={setHeroPreviewOpen}
           />
 
-          <section className="mx-auto mt-8 w-full max-w-[1440px] border-y border-gold-200/70 px-4 py-6 sm:mt-16 sm:px-6 sm:py-10 lg:px-10" aria-labelledby="archive-intro-title">
+          <section className="mx-auto mt-8 w-full max-w-[1440px] px-4 py-6 sm:mt-16 sm:px-6 sm:py-10 lg:px-10" aria-labelledby="archive-intro-title">
             <div className="relative mx-auto flex w-full max-w-5xl flex-col items-center">
               <div className="flex justify-center sm:absolute sm:left-0 sm:top-1/2 sm:-translate-y-1/2" aria-hidden="true">
                 <Flame className="scale-[0.8] sm:scale-[0.9]" />
@@ -207,7 +207,7 @@ export function HomeClient({
                 <div className="mx-auto w-fit max-w-full">
                   <h2
                     id="archive-intro-title"
-                    className="font-cursive text-[clamp(1.75rem,6.2vw,4.25rem)] font-bold leading-[0.95] text-flame-600 whitespace-nowrap"
+                    className="font-cursive text-[clamp(2.25rem,8.4vw,4.5rem)] font-bold leading-[0.95] text-flame-600 whitespace-nowrap"
                   >
                     “{siteSettings.archive_intro_quote}”
                   </h2>
