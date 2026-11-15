@@ -77,6 +77,34 @@ export function getRecentReads(limit = 5): ReadingHistoryEntry[] {
   return getReadingHistory().slice(0, limit);
 }
 
+export interface IssueReadingProgress {
+  page: number;
+  numPages: number | null;
+  progressPct: number;
+  updatedAt: number;
+}
+
+/** Check if there is saved reading progress for an issue. */
+export function getIssueReadingProgress(issueId: string): IssueReadingProgress | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(`${KEY_PREFIX}${issueId}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const page = typeof parsed.page === 'number' ? parsed.page : 1;
+    const numPages = typeof parsed.numPages === 'number' && parsed.numPages > 0 ? parsed.numPages : null;
+    const progressPct = numPages ? Math.min(100, Math.max(2, Math.round((page / numPages) * 100))) : 0;
+    return {
+      page,
+      numPages,
+      progressPct,
+      updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Clear a single issue's saved state — used when the user dismisses a card. */
 export function clearReadingHistoryEntry(issueId: string): void {
   if (typeof window === 'undefined') return;

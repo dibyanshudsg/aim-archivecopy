@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Search, BookMarked } from 'lucide-react';
-import { ContinueReadingFab } from './continue-reading-fab';
+import { BookmarksHeaderMenu } from './bookmarks-header-menu';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -319,7 +319,7 @@ export function Header({
               <Search className="h-5 w-5" />
             </button>
           )}
-          <ContinueReadingFab inline />
+          <BookmarksHeaderMenu contextualControlsVisible={contextualControlsVisible} />
           {pathname !== '/bookmarks' && pathname !== '/browse' && <Link
             href="/bookmarks"
             onMouseEnter={() => prefetchRoute('/bookmarks')}
