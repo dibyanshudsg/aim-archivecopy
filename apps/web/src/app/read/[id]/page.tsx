@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 import { fetchIssue, normalizeIssue, type FullTextSearchResult } from '@/lib/api';
 import { useBookmarks } from '@/lib/bookmarks-store';
-import { formatFileSize, formatMonthYear } from '@/lib/utils';
+import { cn, formatFileSize, formatMonthYear } from '@/lib/utils';
 import { shareIssue, sharePage, type ShareResult } from '@/lib/share-issue';
 import { ReaderPageScrubber } from '@/components/reader/page-scrubber';
 import { SearchablePdfPage } from '@/components/reader/searchable-pdf-page';
@@ -1080,12 +1080,58 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
   const fitWidth = useCallback(() => {
     const container = scrollContainerRef.current;
     if (!container || !pageAspect) return;
-    const padding = window.innerWidth >= 640 ? 64 : 32;
+    const isMobileSingle = isPhone && viewMode === 'single';
+    const paddingX = window.innerWidth >= 640 ? 64 : 20;
+    const paddingY = window.innerWidth >= 640 ? 64 : 20;
     const width = pageAspect.w * effectivePagesPerView + (effectivePagesPerView === 2 ? 12 : 0);
-    const next = Math.min(4, Math.max(0.1, (container.clientWidth - padding) / width));
+    const height = pageAspect.h;
+
+    let next: number;
+    if (isMobileSingle) {
+      const availW = Math.max(100, container.clientWidth - paddingX);
+      const availH = Math.max(100, container.clientHeight - paddingY);
+      const scaleX = availW / width;
+      const scaleY = availH / height;
+      next = Math.min(scaleX, scaleY);
+    } else {
+      next = (container.clientWidth - (window.innerWidth >= 640 ? 64 : 32)) / width;
+    }
+    next = Math.min(4, Math.max(0.1, next));
     setFitWidthScale(next);
     setScale(next);
-  }, [effectivePagesPerView, pageAspect]);
+  }, [effectivePagesPerView, isPhone, pageAspect, viewMode]);
+
+  const isFitted = fitWidthScale != null ? scale <= fitWidthScale * 1.08 : scale <= 1.05;
+
+  const swipeTouchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const handlePageTouchStart = (e: React.TouchEvent) => {
+    if (!isPhone || viewMode !== 'single' || !isFitted) return;
+    if (e.touches.length === 1) {
+      swipeTouchStartRef.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+      };
+    } else {
+      swipeTouchStartRef.current = null;
+    }
+  };
+
+  const handlePageTouchEnd = (e: React.TouchEvent) => {
+    if (!swipeTouchStartRef.current || !isPhone || viewMode !== 'single' || !isFitted) return;
+    const start = swipeTouchStartRef.current;
+    swipeTouchStartRef.current = null;
+    if (e.changedTouches.length === 0) return;
+    const end = e.changedTouches[0];
+    const deltaX = end.clientX - start.x;
+    const deltaY = end.clientY - start.y;
+    if (Math.abs(deltaX) >= 45 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+      if (deltaX < 0 && currentPage < numPages) {
+        goToPage(currentPage + effectivePagesPerView);
+      } else if (deltaX > 0 && currentPage > 1) {
+        goToPage(currentPage - effectivePagesPerView);
+      }
+    }
+  };
 
   // First-time issue reading zoom: 50% on desktop (>=1024px), Fit to size for tablet & phone (<1024px)
   useEffect(() => {
@@ -1473,8 +1519,13 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
       </AnimatePresence>
       <div
         ref={scrollContainerRef}
-        className="relative flex-1 overflow-auto"
-        style={{ touchAction: 'pan-x pan-y' }}
+        className={cn(
+          'relative flex-1',
+          isPhone && viewMode === 'single' && isFitted
+            ? 'overflow-hidden'
+            : 'overflow-auto',
+        )}
+        style={{ touchAction: isPhone && viewMode === 'single' && isFitted ? 'pan-y' : 'pan-x pan-y' }}
       >
         {/* Retain the fast cover JPEG immediately while PDF.js acquires and rasterizes the document. */}
         {!firstPageRendered && issue?.coverImageUrl ? (
@@ -1504,11 +1555,15 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
           </div>
         ) : null}
         <div
-          className={`flex min-h-full p-4 sm:p-8 ${
+          onTouchStart={handlePageTouchStart}
+          onTouchEnd={handlePageTouchEnd}
+          className={cn(
+            'flex min-h-full sm:p-8',
+            isPhone && viewMode === 'single' ? 'p-2' : 'p-4',
             viewMode === 'single'
               ? '[align-items:safe_center] [justify-content:safe_center]'
-              : 'flex-col gap-4 [align-items:safe_center]'
-          }`}
+              : 'flex-col gap-4 [align-items:safe_center]',
+          )}
         >
           {error ? (
             <div className="mt-20 text-center">
@@ -1552,15 +1607,15 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
                       x: { duration: 0.28, ease: [0.32, 0.72, 0, 1] },
                       opacity: { duration: 0.18 },
                     }}
-                    // Swipe-to-turn on phones at default zoom. Disabled when
-                    // zoomed in (scale > 1) so two-finger pinch + pan still
-                    // works against the scroll container.
-                    drag={isPhone && scale <= 1 ? 'x' : false}
+                    // Swipe-to-turn on phones when in Fit zoom. Disabled when
+                    // zoomed in so two-finger pinch + pan still works against
+                    // the scroll container.
+                    drag={isPhone && isFitted ? 'x' : false}
                     dragConstraints={{ left: 0, right: 0 }}
                     dragElastic={0.4}
                     onDragEnd={(_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-                      const OFFSET = 60;
-                      const VELOCITY = 500;
+                      const OFFSET = 45;
+                      const VELOCITY = 400;
                       const wantsNext =
                         info.offset.x < -OFFSET || info.velocity.x < -VELOCITY;
                       const wantsPrev =
@@ -1711,7 +1766,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
       {numPages > 0 && (
         <aside
           aria-label="Page navigation"
-          className="fixed right-4 bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] z-40 flex flex-col gap-2.5 lg:hidden"
+          className="fixed right-4 bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] z-20 flex flex-col gap-2.5 lg:hidden"
         >
           <button
             type="button"
@@ -2287,7 +2342,7 @@ function FindTextDrawer({
           <motion.button
             type="button"
             aria-label="Close find in text"
-            className="fixed inset-0 z-30 cursor-default bg-gray-950/20"
+            className="fixed inset-0 z-40 cursor-default bg-gray-950/20"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={onClose}
           />
@@ -2295,7 +2350,7 @@ function FindTextDrawer({
             role="dialog"
             aria-modal="true"
             aria-labelledby="find-text-title"
-            className="fixed inset-y-0 left-0 z-40 flex w-[min(420px,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-r-2xl border border-flame-100 bg-white shadow-2xl md:inset-y-3 md:left-3 md:rounded-2xl"
+            className="fixed inset-y-0 left-0 z-50 flex w-[min(420px,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-r-2xl border border-flame-100 bg-white shadow-2xl md:inset-y-3 md:left-3 md:rounded-2xl"
             initial={{ x: -40, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -40, opacity: 0 }}
             transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
           >
@@ -2432,7 +2487,7 @@ function IssueInfoDrawer({
           <motion.button
             type="button"
             aria-label="Close issue information"
-            className="fixed inset-0 z-30 cursor-default bg-gray-950/20"
+            className="fixed inset-0 z-40 cursor-default bg-gray-950/20"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -2444,7 +2499,7 @@ function IssueInfoDrawer({
             role="dialog"
             aria-modal="true"
             aria-labelledby="reader-info-title"
-            className="fixed inset-y-0 left-0 z-40 flex w-[min(420px,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-r-2xl border border-flame-100 bg-white shadow-2xl md:inset-y-3 md:left-3 md:rounded-2xl"
+            className="fixed inset-y-0 left-0 z-50 flex w-[min(420px,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-r-2xl border border-flame-100 bg-white shadow-2xl md:inset-y-3 md:left-3 md:rounded-2xl"
             initial={{ x: -40, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: -40, opacity: 0 }}
