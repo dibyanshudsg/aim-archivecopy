@@ -12,7 +12,7 @@ export interface HeroArtworkInventoryRecord {
   mobile: HeroArtworkRecord | null;
 }
 
-export async function readHeroPresentation(issueId: string): Promise<{ desktop: HeroArtworkRecord | null; mobile: HeroArtworkRecord | null }> {
+export async function readDirectHeroPresentation(issueId: string): Promise<{ desktop: HeroArtworkRecord | null; mobile: HeroArtworkRecord | null }> {
   const { rows } = await getDb().execute({ sql: 'SELECT * FROM issue_hero_presentations WHERE issue_id=?', args: [issueId] });
   const row = rows[0];
   const slot = (name: HeroArtworkSlot): HeroArtworkRecord | null => {
@@ -22,9 +22,59 @@ export async function readHeroPresentation(issueId: string): Promise<{ desktop: 
   return { desktop: slot('desktop'), mobile: slot('mobile') };
 }
 
+export async function readHeroPresentation(issueId: string): Promise<{ desktop: HeroArtworkRecord | null; mobile: HeroArtworkRecord | null }> {
+  const direct = await readDirectHeroPresentation(issueId);
+  let desktop = direct.desktop;
+  let mobile = direct.mobile;
+
+  // If this issue does not have custom hero artwork, inherit from
+  // another issue published in the exact same year and month (e.g. Hindi Agnishikha
+  // sharing the monthly hero artwork updated for English All India Magazine).
+  if (!desktop || !mobile) {
+    const { rows } = await getDb().execute({
+      sql: `SELECT p.* FROM issue_hero_presentations p
+            JOIN issues target ON target.id = ?
+            JOIN issues sibling ON sibling.id = p.issue_id AND sibling.year = target.year AND sibling.month = target.month AND sibling.id != target.id
+            ORDER BY (p.desktop_key IS NOT NULL AND p.mobile_key IS NOT NULL) DESC, p.updated_at DESC
+            LIMIT 1`,
+      args: [issueId],
+    });
+    const sRow = rows[0];
+    if (sRow) {
+      if (!desktop && typeof sRow.desktop_key === 'string') {
+        desktop = {
+          key: String(sRow.desktop_key),
+          width: Number(sRow.desktop_width),
+          height: Number(sRow.desktop_height),
+          hash: String(sRow.desktop_hash),
+          theme: String(sRow.desktop_theme_json ?? '{}'),
+        };
+      }
+      if (!mobile && typeof sRow.mobile_key === 'string') {
+        mobile = {
+          key: String(sRow.mobile_key),
+          width: Number(sRow.mobile_width),
+          height: Number(sRow.mobile_height),
+          hash: String(sRow.mobile_hash),
+          theme: String(sRow.mobile_theme_json ?? '{}'),
+        };
+      }
+    }
+  }
+
+  return { desktop, mobile };
+}
+
 export async function listReleasedReadyHeroIssueIds(): Promise<string[]> {
-  const { rows }=await getDb().execute(`SELECT p.issue_id FROM issue_hero_presentations p JOIN issues i ON i.id=p.issue_id WHERE p.desktop_key IS NOT NULL AND p.mobile_key IS NOT NULL AND ${releasedIssueSql('i')} ORDER BY i.year DESC,i.month DESC,i.magazine_id ASC`);
-  return rows.map(row=>String(row.issue_id));
+  const { rows } = await getDb().execute(`
+    SELECT DISTINCT i.id AS issue_id
+    FROM issues i
+    JOIN issues sibling ON sibling.year = i.year AND sibling.month = i.month
+    JOIN issue_hero_presentations p ON p.issue_id = sibling.id
+    WHERE p.desktop_key IS NOT NULL AND p.mobile_key IS NOT NULL AND ${releasedIssueSql('i')}
+    ORDER BY i.year DESC, i.month DESC, i.magazine_id ASC
+  `);
+  return rows.map((row) => String(row.issue_id));
 }
 
 export async function listHeroArtworkInventory(): Promise<HeroArtworkInventoryRecord[]> {
@@ -49,7 +99,7 @@ export async function listHeroArtworkInventory(): Promise<HeroArtworkInventoryRe
 }
 
 export async function saveHeroArtwork(issueId: string, slot: HeroArtworkSlot, artwork: HeroArtworkRecord, adminId: string): Promise<string | null> {
-  const previous = await readHeroPresentation(issueId);
+  const previous = await readDirectHeroPresentation(issueId);
   const prefix = slot === 'desktop' ? 'desktop' : 'mobile';
   await getDb().execute({
     sql: `INSERT INTO issue_hero_presentations(issue_id,${prefix}_key,${prefix}_width,${prefix}_height,${prefix}_hash,${prefix}_theme_json,updated_by,updated_at)
@@ -62,7 +112,7 @@ export async function saveHeroArtwork(issueId: string, slot: HeroArtworkSlot, ar
 }
 
 export async function removeHeroArtwork(issueId: string, slot: HeroArtworkSlot, adminId: string): Promise<string | null> {
-  const previous = await readHeroPresentation(issueId);
+  const previous = await readDirectHeroPresentation(issueId);
   const prefix = slot === 'desktop' ? 'desktop' : 'mobile';
   await getDb().execute({ sql: `UPDATE issue_hero_presentations SET ${prefix}_key=NULL,${prefix}_width=NULL,${prefix}_height=NULL,${prefix}_hash=NULL,${prefix}_theme_json=NULL,updated_by=?,updated_at=? WHERE issue_id=?`, args: [adminId, nowIso(), issueId] });
   return previous[slot]?.key ?? null;

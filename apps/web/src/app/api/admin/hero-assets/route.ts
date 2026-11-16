@@ -11,6 +11,7 @@ import { boundedJson } from '@/lib/request-body';
 import { z } from 'zod';
 import { deleteFromR2, uploadToR2 } from '@/lib/r2-client';
 import { HERO_ARTWORK_TARGET_BYTES, optimizeHeroArtwork } from '@/lib/hero-artwork-compression';
+import { refreshPublicArchiveCaches } from '@/lib/public-cache';
 
 export const runtime = 'nodejs';
 const MAX = 8 * 1024 * 1024;
@@ -81,6 +82,7 @@ export async function POST(request: NextRequest) {
     const old = await saveHeroArtwork(issueId,slot,{ key: uploaded,width,height,hash,theme:themeFor(canvas) },admin.id);
     if (old && old !== uploaded) await deleteFromR2(old).catch(() => undefined);
     await auditAdmin(admin.id,'hero.artwork.updated',issueId,`${slot}:${hash}`);
+    refreshPublicArchiveCaches(issueId);
     return NextResponse.json({ ok: true, hash, width, height, originalBytes: file.size, storedBytes: optimized.bytes.length, targetBytes: HERO_ARTWORK_TARGET_BYTES, quality: optimized.quality, targetMet: optimized.targetMet }, { status: 201 });
   } catch (error) { if (uploaded) await deleteFromR2(uploaded).catch(() => undefined); return adminApiFailure(error,'Could not upload hero artwork'); }
 }
@@ -118,6 +120,7 @@ export async function PATCH(request: NextRequest) {
     const saved=await saveHeroArtworkTheme(parsed.data.issueId,parsed.data.slot,JSON.stringify(theme),admin.id);
     if(!saved) return NextResponse.json({error:'Artwork no longer exists'},{status:409});
     await auditAdmin(admin.id,'hero.theme.updated',parsed.data.issueId,`${parsed.data.slot}:${parsed.data.textTone??`button-${parsed.data.buttonTextTone}`}`);
+    refreshPublicArchiveCaches(parsed.data.issueId);
     return NextResponse.json({theme});
   } catch(error){return adminApiFailure(error,'Could not save hero colours');}
 }
@@ -127,6 +130,12 @@ export async function DELETE(request: NextRequest) {
   const limited = await adminMutationRateLimit(request,admin.id); if (limited) return limited;
   const url = new URL(request.url), issueId = url.searchParams.get('issueId'), slot = url.searchParams.get('slot');
   if (!validId(issueId) || !validSlot(slot)) return NextResponse.json({ error: 'Invalid issue or slot' }, { status: 400 });
-  try { const old = await removeHeroArtwork(issueId,slot,admin.id); if (old) await deleteFromR2(old).catch(() => undefined); await auditAdmin(admin.id,'hero.artwork.removed',issueId,slot); return NextResponse.json({ ok: true }); }
+  try {
+    const old = await removeHeroArtwork(issueId,slot,admin.id);
+    if (old) await deleteFromR2(old).catch(() => undefined);
+    await auditAdmin(admin.id,'hero.artwork.removed',issueId,slot);
+    refreshPublicArchiveCaches(issueId);
+    return NextResponse.json({ ok: true });
+  }
   catch (error) { return adminApiFailure(error,'Could not remove hero artwork'); }
 }

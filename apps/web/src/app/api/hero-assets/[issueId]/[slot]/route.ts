@@ -19,9 +19,11 @@ const ALLOWED_HERO_TYPES = ['image/avif', 'image/webp', 'image/png', 'image/jpeg
 export async function GET(request:Request,{params}:{params:Promise<{issueId:string;slot:string}>}){
   const {issueId,slot}=await params;
   if(!/^[A-Za-z0-9_-]{1,128}$/.test(issueId)||(slot!=='desktop'&&slot!=='mobile'))return new Response(null,{status:404,headers});
+  const url = new URL(request.url);
+  const version = url.searchParams.get('v');
   const cacheKey = `${issueId}:${slot}`;
   const cached = heroMemoryCache.get(cacheKey);
-  if (cached) {
+  if (cached && (!version || cached.hash === version)) {
     const ifNoneMatch = request.headers.get('if-none-match');
     if (ifNoneMatch && ifNoneMatch === `"${cached.hash}"`) {
       return new Response(null, { status: 304, headers: { ...headers, ETag: `"${cached.hash}"` } });
