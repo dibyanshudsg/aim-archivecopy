@@ -8,7 +8,7 @@ import { BookOpenText } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { LatestSubscriberEditions } from '@/components/home/latest-subscriber-editions';
-import { Flame } from '@/components/home/flame';
+import { AimHistorySection } from '@/components/home/aim-history-section';
 
 import { ThisMonthFeatured } from '@/components/home/this-month-featured';
 import type { ApiIssue, ApiMagazine } from '@/lib/api';
@@ -199,27 +199,25 @@ export function HomeClient({
           />
 
           <section className="mx-auto mt-8 w-full max-w-[1440px] px-4 py-6 sm:mt-16 sm:px-6 sm:py-10 lg:px-10" aria-labelledby="archive-intro-title">
-            <div className="relative mx-auto flex w-full max-w-5xl flex-col items-center">
-              <div className="flex justify-center mb-3 sm:mb-0 sm:absolute sm:-left-8 md:-left-14 lg:-left-20 sm:top-1/2 sm:-translate-y-1/2" aria-hidden="true">
-                <Flame className="scale-[0.96] sm:scale-[1.02] lg:scale-[1.08]" />
-              </div>
-              <div className="w-full min-w-0 max-w-4xl text-center sm:pl-14 sm:pr-8 md:pl-16 md:pr-10 lg:px-14">
-                <div className="mx-auto w-fit max-w-full">
-                  <h2
-                    id="archive-intro-title"
-                    className="font-cursive text-[clamp(2.25rem,8.4vw,4.5rem)] font-bold leading-[0.95] text-flame-600 whitespace-nowrap"
-                  >
-                    “{siteSettings.archive_intro_quote}”
-                  </h2>
-                  <p className="font-heading mt-2 text-right text-xs tracking-wide text-flame-800 sm:text-sm md:text-base">
-                    — {siteSettings.archive_intro_attribution}
-                  </p>
-                </div>
-                <p className="mt-5 max-w-4xl text-base leading-relaxed text-gray-700 sm:text-lg text-justify [text-align-last:center] hyphens-auto">
-                  {siteSettings.archive_intro_description}
+            <div className="mx-auto flex w-full max-w-4xl flex-col items-center text-center">
+              <div className="mx-auto w-fit max-w-full">
+                <h2
+                  id="archive-intro-title"
+                  className="font-cursive text-[clamp(2.25rem,8.4vw,4.5rem)] font-bold leading-[0.95] text-flame-600 whitespace-nowrap"
+                >
+                  “{siteSettings.archive_intro_quote}”
+                </h2>
+                <p className="font-heading mt-2 text-right text-xs font-semibold tracking-wider text-flame-900 sm:text-sm md:text-base">
+                  — {siteSettings.archive_intro_attribution}
                 </p>
               </div>
+              <p className="mt-5 max-w-4xl text-base leading-relaxed text-gray-700 sm:text-lg text-justify [text-align-last:center] hyphens-auto">
+                {siteSettings.archive_intro_description}
+              </p>
             </div>
+
+            {/* Section-wide History of AIM Card */}
+            <AimHistorySection />
           </section>
 
 
