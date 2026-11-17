@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { ArrowUpRight, BookOpen, CalendarDays, Check, ChevronDown, LockKeyhole, X } from 'lucide-react';
+import { BookOpen, CalendarDays, Check, ChevronDown, ChevronRight, LockKeyhole, X } from 'lucide-react';
 import { MONTH_NAMES, type MonthIndex } from '@aim-archive/shared';
 import type { HeroPickerIssue } from '@/lib/hero-picker-issue';
 import { formatMonthYear } from '@/lib/utils';
@@ -14,12 +14,12 @@ interface Props {
   open: boolean;
   initialYear: number;
   issues: HeroPickerIssue[];
-  heroReadyIds: Set<string>;
+  heroReadyIds?: Set<string>;
   onClose: () => void;
   onSelect: (issue: HeroPickerIssue) => void;
 }
 
-export function HeroIssuePicker({ open, initialYear, issues, heroReadyIds, onClose, onSelect }: Props) {
+export function HeroIssuePicker({ open, initialYear, issues, onClose, onSelect }: Props) {
   const [year, setYear] = useState(initialYear);
   const [yearOpen, setYearOpen] = useState(false);
   const yearOpenRef = useRef(false);
@@ -133,7 +133,7 @@ export function HeroIssuePicker({ open, initialYear, issues, heroReadyIds, onClo
               {months.length === 0 ? <p className="py-12 text-center text-sm text-gray-600">No published issues for this year.</p>
                   : <div className="space-y-8">{months.map(([month, monthIssues], index) => <motion.section key={`${year}-${month}`} initial={{ y: reduceMotion ? 0 : 12 }} animate={{ y: 0 }} transition={{ duration: reduceMotion ? 0 : 0.3, delay: reduceMotion ? 0 : Math.min(index * 0.035, 0.16) }} aria-labelledby={`picker-month-${month}`}>
                     <div className="mb-3 flex items-baseline justify-between"><h3 id={`picker-month-${month}`} className="font-heading text-xl font-semibold text-gray-900">{MONTH_NAMES[month as MonthIndex]}</h3><span className="text-xs text-gray-500">{monthIssues.length} issue{monthIssues.length === 1 ? '' : 's'}</span></div>
-                    <div className="divide-y divide-flame-100 overflow-hidden rounded-xl border border-flame-100">{monthIssues.map((issue) => <IssueOption key={issue.id} issue={issue} heroReady={heroReadyIds.has(issue.id)} onSelect={onSelect} />)}</div>
+                    <div className="divide-y divide-flame-100 overflow-hidden rounded-xl border border-flame-100">{monthIssues.map((issue) => <IssueOption key={issue.id} issue={issue} onSelect={onSelect} />)}</div>
                   </motion.section>)}</div>}
             </div>
           </motion.section>
@@ -143,24 +143,34 @@ export function HeroIssuePicker({ open, initialYear, issues, heroReadyIds, onClo
   );
 }
 
-function IssueOption({ issue, heroReady, onSelect }: { issue: HeroPickerIssue; heroReady: boolean; onSelect: (issue: HeroPickerIssue) => void }) {
-  const action = heroReady ? 'View' : issue.readable ? 'Read issue' : 'Issue details';
+function IssueOption({ issue, onSelect }: { issue: HeroPickerIssue; onSelect: (issue: HeroPickerIssue) => void }) {
   return (
-    <button type="button" onClick={() => onSelect(issue)} aria-label={`${action}: ${issue.title}`} className="group flex min-h-24 w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-flame-50/60 focus-visible:bg-flame-50/60 sm:gap-4 sm:px-4">
+    <button
+      type="button"
+      onClick={() => onSelect(issue)}
+      aria-label={`View ${issue.title} in hero`}
+      className="group flex min-h-24 w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-flame-50/60 focus-visible:bg-flame-50/60 sm:gap-4 sm:px-4"
+    >
       <span className="relative h-18 w-[54px] shrink-0 overflow-hidden rounded bg-gradient-to-br from-gold-100 to-flame-100 shadow-sm sm:h-20 sm:w-[60px]">
-        {issue.cover_image_url ? <ViewportCoverImage src={issue.cover_image_url} alt="" fill sizes="60px" className="object-cover" /> : <span className="flex h-full items-center justify-center text-flame-600"><BookOpen className="h-6 w-6" aria-hidden="true" /></span>}
+        {issue.cover_image_url ? (
+          <ViewportCoverImage src={issue.cover_image_url} alt="" fill sizes="60px" className="object-cover" />
+        ) : (
+          <span className="flex h-full items-center justify-center text-flame-600">
+            <BookOpen className="h-6 w-6" aria-hidden="true" />
+          </span>
+        )}
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-[11px] font-semibold tracking-wide text-flame-700 uppercase">{issue.magazine_name}</span>
         <span className="mt-1 block text-sm font-semibold leading-snug text-gray-900 group-hover:text-flame-800">{issue.theme || issue.title}</span>
         {issue.theme && <span className="mt-0.5 block text-xs leading-snug text-gray-600">{issue.title}</span>}
         <span className="mt-1 block text-xs text-gray-500">{formatMonthYear(issue.month, issue.year)}</span>
-        <span className="mt-1 block text-[11px] font-semibold text-flame-700 sm:hidden">{action}</span>
+        <span className="mt-1 block text-[11px] font-semibold text-flame-700 sm:hidden">View</span>
       </span>
-      <span className="inline-flex shrink-0 items-center gap-1 text-flame-700">
-        {!heroReady && !issue.readable && <LockKeyhole className="h-4 w-4" aria-hidden="true" />}
-        <span className="hidden text-xs font-semibold sm:inline">{action}</span>
-        <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true" />
+      <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-flame-700">
+        {!issue.readable && <LockKeyhole className="h-3.5 w-3.5 text-flame-600" aria-label="Embargoed" />}
+        <span className="hidden sm:inline">View</span>
+        <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
       </span>
     </button>
   );

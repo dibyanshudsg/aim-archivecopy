@@ -214,7 +214,7 @@ const EMPTY_ISSUES: ApiIssue[] = [];
  */
 export function ThisMonthFeatured({
   magazines,
-  issues,
+  issues: initialIssues,
   archiveIssues,
   onPreviewChange,
 }: ThisMonthFeaturedProps) {
@@ -222,8 +222,17 @@ export function ThisMonthFeatured({
   const containerRef = useRef<HTMLDivElement>(null);
   const swipeStartRef = useRef<{x:number;y:number;identifier:number}|null>(null);
   const pendingSelectionRef = useRef<string | null>(null);
+  const [extraIssues, setExtraIssues] = useState<ApiIssue[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const closePicker = useCallback(() => setPickerOpen(false), []);
+
+  const issues = useMemo(() => {
+    if (extraIssues.length === 0) return initialIssues;
+    const existingIds = new Set(initialIssues.map((i) => i.id));
+    const added = extraIssues.filter((i) => !existingIds.has(i.id));
+    return [...initialIssues, ...added];
+  }, [initialIssues, extraIssues]);
+
   const heroReadyIds = useMemo(() => new Set(issues.filter((issue) => (
     issue.hero?.mobileUrl && issue.hero.desktopUrl.startsWith('/api/hero-assets/')
   ) || (
@@ -317,6 +326,17 @@ export function ThisMonthFeatured({
     setCurrentIndex(requestedIndex >= 0 ? requestedIndex : Math.max(0, visibleIssues.length - 1));
   }, [magazineFilter, showPrevious]);
 
+  useEffect(() => {
+    if (!pendingSelectionRef.current) return;
+    const requested = pendingSelectionRef.current;
+    const requestedIndex = visibleIssues.findIndex((item) => item.id === requested);
+    if (requestedIndex >= 0) {
+      pendingSelectionRef.current = null;
+      setSlideDirection(requestedIndex >= currentIndex ? 1 : -1);
+      setCurrentIndex(requestedIndex);
+    }
+  }, [visibleIssues, currentIndex]);
+
   // Defensive clamp — if the visible set shrinks to fewer items than the
   // current index, snap back to start.
   useEffect(() => {
@@ -344,22 +364,82 @@ export function ThisMonthFeatured({
 
   function selectPickerIssue(issue: HeroPickerIssue) {
     closePicker();
-    if (heroReadyIds.has(issue.id)) {
-      const visibleIndex = visibleIssues.findIndex((candidate) => candidate.id === issue.id);
-      if (visibleIndex >= 0) jumpTo(visibleIndex);
-      else {
-        pendingSelectionRef.current = issue.id;
+    const existingIndex = issues.findIndex((candidate) => candidate.id === issue.id);
+
+    if (existingIndex >= 0) {
+      pendingSelectionRef.current = issue.id;
+      if (magazineFilter !== 'all' && magazineFilter !== issue.magazine_id) {
+        setMagazineFilter(issue.magazine_id);
+      } else {
+        const visibleIndex = visibleIssues.findIndex((candidate) => candidate.id === issue.id);
+        if (visibleIndex >= 0) {
+          jumpTo(visibleIndex);
+          pendingSelectionRef.current = null;
+        }
+      }
+    } else {
+      const optimisticIssue: ApiIssue = {
+        id: issue.id,
+        magazine_id: issue.magazine_id,
+        title: issue.title,
+        theme: issue.theme,
+        year: issue.year,
+        month: issue.month,
+        description: null,
+        topics: [],
+        pdf_url: issue.readable ? `/api/issues/${issue.id}/pdf` : null,
+        epub_url: null,
+        mobi_url: null,
+        cover_image_url: issue.cover_image_url,
+        page_count: null,
+        file_size_bytes: 0,
+        read_count: 0,
+        download_count: 0,
+        is_published: true,
+        is_embargoed: !issue.readable,
+        embargo_lift_label: null,
+        embargo_lift_at: null,
+        server_now: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        magazines: {
+          id: issue.magazine_id,
+          name: issue.magazine_name,
+          language: issue.magazine_name.toLowerCase().includes('agnishikha') ? 'hindi' : 'english',
+          description: '',
+          cover_image_url: null,
+        },
+        hero: {
+          desktopUrl: '/aim-oct-2026-hero.png',
+          mobileUrl: null,
+          desktopTheme: { layout: HERO_PLACEMENT_DEFAULTS },
+          mobileTheme: { layout: HERO_PLACEMENT_DEFAULTS },
+        },
+      };
+
+      pendingSelectionRef.current = issue.id;
+      setExtraIssues((prev) => [...prev, optimisticIssue]);
+      if (magazineFilter !== 'all' && magazineFilter !== issue.magazine_id) {
         setMagazineFilter(issue.magazine_id);
       }
-      requestAnimationFrame(() => containerRef.current?.scrollIntoView({ behavior: reduceMotion ? 'instant' : 'smooth', block: 'start' }));
-      return;
+
+      fetch(`/api/issues/${issue.id}?track=0`)
+        .then((res) => (res.ok ? (res.json() as Promise<ApiIssue>) : null))
+        .then((fullIssue) => {
+          if (!fullIssue) return;
+          setExtraIssues((prev) =>
+            prev.map((item) => (item.id === fullIssue.id ? fullIssue : item)),
+          );
+        })
+        .catch((err) => console.error('Failed to load full issue for hero:', err));
     }
-    if (issue.readable) {
-      rememberReaderSource(issue.id, 'shelf');
-      router.push(readerPath(issue.id));
-    } else {
-      router.push(issueDetailPath(issue.id));
-    }
+
+    requestAnimationFrame(() => {
+      containerRef.current?.scrollIntoView({
+        behavior: reduceMotion ? 'instant' : 'smooth',
+        block: 'start',
+      });
+    });
   }
 
   function onHeroTouchStart(event: React.TouchEvent<HTMLDivElement>) {
@@ -887,7 +967,10 @@ function FeaturedSlide({
   }, [previewOpen, reduceMotion]);
 
   function openBook() {
-    if (!issue.pdf_url) return;
+    if (!issue.pdf_url) {
+      router.push(issueDetailPath(issue.id));
+      return;
+    }
     rememberReaderSource(issue.id,'shelf');
     router.push(readerPath(issue.id));
   }
@@ -1277,11 +1360,11 @@ function HeroDescriptionSummary({
   }, [description, mobile]);
 
   return (
-    <div className={mobile ? 'mt-3' : 'mt-5 max-w-[59ch]'}>
+    <div className={mobile ? 'mt-3' : 'mt-3 md:mt-4 xl:mt-5 max-w-[59ch]'}>
       <p
         ref={textRef}
         className={cn(
-          'transition-colors duration-300',
+          'transition-colors duration-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.25)]',
           mobile ? 'text-sm leading-6' : 'text-[clamp(0.95rem,1.15vw,1.15rem)] leading-[1.75]',
           mobile ? 'line-clamp-2' : 'line-clamp-3',
         )}
@@ -1318,7 +1401,7 @@ function MobileScenicHero({ issue, eyebrow, monthName, bookmarked, onBookmark, o
     '--hero-focal-x-phone-negative':`${-placement.focalX}%`,'--hero-focal-y-phone-negative':`${-placement.focalY}%`,
   } as React.CSSProperties;
   return <div data-hero-swipe className="flex flex-col bg-white md:hidden">
-    <div style={sceneVariables} className="scenic-phone-scene relative h-[520px] xs:h-[560px] sm:h-[600px] overflow-hidden">
+    <div style={sceneVariables} className="scenic-phone-scene relative w-full aspect-[9/16] overflow-hidden">
       <div className={cn('scenic-artboard scenic-artboard-phone',animateOnMount&&sceneReady&&'scenic-artboard-enter')}>
         {!sceneReady && (
           <div aria-hidden="true" className="cover-shimmer absolute inset-0 z-[1] bg-gradient-to-b from-[#f7f2ea] via-[#f0e6d6] to-[#e6d5c1]" />
@@ -1331,15 +1414,14 @@ function MobileScenicHero({ issue, eyebrow, monthName, bookmarked, onBookmark, o
         <button
           type="button"
           onClick={onBookOpen}
-          disabled={!issue.pdf_url}
-          aria-label={issue.pdf_url?`Read ${issue.title}`:`${issue.title} is not yet readable`}
+          aria-label={issue.pdf_url ? `Read ${issue.title}` : `View ${issue.title} details (Embargoed)`}
           style={{
             left: `${placement.bookX}%`,
             bottom: `${Math.max(100 - placement.baselineY, 22)}%`,
-            height: `${Math.min(36 * (placement.bookScale / 100), 40)}%`,
+            height: `${Math.min(43 * (placement.bookScale / 100), 48)}%`,
             transform: 'translateX(-50%)',
           }}
-          className="scenic-book-stage absolute z-[3] aspect-[2/3] max-w-[42%] disabled:cursor-not-allowed"
+          className="scenic-book-stage absolute z-[3] aspect-[2/3] max-w-[50%]"
         >
           <span className="scenic-book-shadow" aria-hidden="true" />
           <span className="scenic-book block h-full w-full" style={{ '--book-spine-color': coverPalette.dominant, '--book-spine-foreground': coverPalette.foreground } as React.CSSProperties}>
@@ -1353,16 +1435,16 @@ function MobileScenicHero({ issue, eyebrow, monthName, bookmarked, onBookmark, o
           </span>
         </button>
       </div>
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[4] h-20 sm:h-24 bg-gradient-to-b from-transparent via-white/45 to-white" aria-hidden="true" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[4] h-16 sm:h-20 bg-gradient-to-b from-transparent via-white/40 to-white" aria-hidden="true" />
     </div>
     <div className="shrink-0 bg-white px-5 py-3.5 sm:px-7 sm:py-5">
       <p className="text-[10px] font-semibold uppercase tracking-[.18em] transition-colors duration-300" style={{color:issueColours.body}}>{eyebrow}</p>
       <h1 className="mt-1 font-heading text-[clamp(1.5rem,7vw,2.25rem)] leading-tight transition-colors duration-300" style={{color:issueColours.heading}}>{issue.theme || issue.title}</h1>
       {issue.description ? <HeroDescriptionSummary description={issue.description} color={issueColours.body} issueId={issue.id} mobile /> : null}
       <div className="mt-3 flex gap-2">
-        {issue.pdf_url?<Link href={readerPath(issue.id)} prefetch={true} onClick={() => rememberReaderSource(issue.id,'shelf')} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white transition-colors duration-300" style={{background:issueColours.button,color:issueColours.buttonForeground}}><BookOpen className="h-4 w-4"/>Read issue</Link>:<span className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white transition-colors duration-300" style={{background:issueColours.button,color:issueColours.buttonForeground}}><BookOpen className="h-4 w-4"/>Embargoed</span>}
-        <button type="button" onClick={onPreview} disabled={!issue.pdf_url} aria-label="Preview pages" className="flex h-11 w-11 items-center justify-center rounded-xl border bg-white/80 transition-colors duration-300 disabled:cursor-not-allowed disabled:opacity-50" style={{color:issueColours.heading,borderColor:issueColours.body}}><FileText className="h-5 w-5"/></button>
-        <button type="button" onClick={onBookmark} suppressHydrationWarning aria-label={bookmarked?'Remove bookmark':'Save to bookmarks'} className="flex h-11 w-11 items-center justify-center rounded-xl border bg-white/80 transition-colors duration-300" style={{color:issueColours.heading,borderColor:issueColours.body}}><Heart className={cn('h-5 w-5',bookmarked&&'fill-[#d97735] text-[#d97735]')}/></button>
+        {issue.pdf_url?<Link href={readerPath(issue.id)} prefetch={true} onClick={() => rememberReaderSource(issue.id,'shelf')} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white transition-colors duration-300" style={{background:issueColours.button,color:issueColours.buttonForeground}}><BookOpen className="h-4 w-4"/>Read issue</Link>:<Link href={issueDetailPath(issue.id)} prefetch={true} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white transition-colors duration-300 hover:opacity-95 active:scale-[0.98]" style={{background:issueColours.button,color:issueColours.buttonForeground}} title="View embargo details"><BookOpen className="h-4 w-4"/>Embargoed</Link>}
+        <button type="button" onClick={onPreview} disabled={!issue.pdf_url} aria-label="Preview pages" className="flex h-11 w-11 items-center justify-center rounded-xl border border-gray-200/80 bg-white/90 text-[#17384d] shadow-sm transition-colors duration-300 disabled:cursor-not-allowed disabled:opacity-50 hover:bg-white"><FileText className="h-5 w-5"/></button>
+        <button type="button" onClick={onBookmark} suppressHydrationWarning aria-label={bookmarked?'Remove bookmark':'Save to bookmarks'} className="flex h-11 w-11 items-center justify-center rounded-xl border border-gray-200/80 bg-white/90 text-[#17384d] shadow-sm transition-colors duration-300 hover:bg-white"><Heart className={cn('h-5 w-5 text-current',bookmarked&&'fill-[#d97735] text-[#d97735]')}/></button>
       </div>
     </div>
   </div>;
@@ -1472,11 +1554,10 @@ export function DesktopScenicHero({
           ref={bookRef}
           type="button"
           onClick={onBookOpen}
-          disabled={!issue.pdf_url}
           onPointerMove={moveBook}
           onPointerLeave={resetBook}
-          aria-label={issue.pdf_url?`Read ${issue.title}`:`${issue.title} is not yet readable`}
-          className="scenic-book-stage scenic-book-stage-positioned scenic-book-stage-settle focus-visible:outline-none disabled:cursor-not-allowed"
+          aria-label={issue.pdf_url ? `Read ${issue.title}` : `View ${issue.title} details (Embargoed)`}
+          className="scenic-book-stage scenic-book-stage-positioned scenic-book-stage-settle focus-visible:outline-none"
         >
           <span className="scenic-book-shadow" aria-hidden="true" />
           <span className="scenic-book block h-full w-full" style={{ '--book-spine-color': coverPalette.dominant, '--book-spine-foreground': coverPalette.foreground } as React.CSSProperties}>
@@ -1491,27 +1572,29 @@ export function DesktopScenicHero({
         </button>
       </div>
 
-      <div className="scenic-hero-copy absolute bottom-[12.5%] left-[49.5%] top-[13%] flex w-[45%] flex-col justify-center text-[#153f63]" style={{ color: theme.text }}>
-        <p className="max-w-full text-[0.76rem] font-semibold uppercase tracking-[0.27em] transition-colors duration-300" style={{ color: issueColours.body }}>{eyebrow}</p>
-        <h1 className={cn('mt-5 max-w-[13ch] font-heading leading-[1.03] tracking-[-0.025em] transition-colors duration-300', compact ? 'text-[clamp(2.25rem,4vw,4rem)]' : 'text-[clamp(2.7rem,4.6vw,5rem)]')} style={{ color: issueColours.heading }}>
+      <div className="scenic-hero-copy absolute bottom-[9%] top-[9%] left-[41%] w-[55%] md:left-[42%] md:w-[54%] lg:left-[45%] lg:w-[50%] xl:left-[49.5%] xl:w-[45%] flex flex-col justify-center text-[#153f63]" style={{ color: theme.text }}>
+        <p className="max-w-full text-[0.76rem] font-semibold uppercase tracking-[0.27em] transition-colors duration-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" style={{ color: issueColours.body }}>{eyebrow}</p>
+        <h1 className={cn('mt-3 md:mt-4 xl:mt-5 max-w-[15ch] font-heading leading-[1.03] tracking-[-0.025em] transition-colors duration-300 drop-shadow-[0_2px_5px_rgba(0,0,0,0.3)]', compact ? 'text-[clamp(2.25rem,4vw,4rem)]' : 'text-[clamp(2.2rem,4.2vw,5rem)]')} style={{ color: issueColours.heading }}>
           {issue.theme || issue.title}
         </h1>
         {issue.description ? <HeroDescriptionSummary description={issue.description} color={issueColours.body} issueId={issue.id} /> : null}
 
-        <div className="mt-8 flex items-center gap-3">
+        <div className="mt-4 md:mt-6 xl:mt-8 flex items-center gap-3">
           {issue.pdf_url?<Link href={readerPath(issue.id)} prefetch={true} onClick={() => rememberReaderSource(issue.id, 'shelf')} className="scenic-primary-action inline-flex min-h-12 items-center gap-3 rounded-xl px-7 py-3 text-base font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#123e62]" style={{ background: issueColours.button, color: issueColours.buttonForeground }}>
             <BookOpen className="h-5 w-5" /> Read issue <ArrowRight className="h-4 w-4" />
-          </Link>:<span className="inline-flex min-h-12 items-center gap-3 rounded-xl px-7 py-3 text-base font-semibold text-white transition-colors duration-300" style={{background:issueColours.button,color:issueColours.buttonForeground}}><BookOpen className="h-5 w-5"/>Embargoed</span>}
-          <button type="button" onClick={onPreview} disabled={!issue.pdf_url} style={{color:issueColours.heading,borderColor:issueColours.body}} className="scenic-secondary-action inline-flex min-h-12 items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#123e62] disabled:cursor-not-allowed disabled:opacity-50">
+          </Link>:<Link href={issueDetailPath(issue.id)} prefetch={true} className="scenic-primary-action inline-flex min-h-12 items-center gap-3 rounded-xl px-7 py-3 text-base font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#123e62] transition-colors duration-300 hover:opacity-95" style={{ background: issueColours.button, color: issueColours.buttonForeground }} title="View embargo details">
+            <BookOpen className="h-5 w-5" /> Embargoed <ArrowRight className="h-4 w-4" />
+          </Link>}
+          <button type="button" onClick={onPreview} disabled={!issue.pdf_url} className="scenic-secondary-action inline-flex min-h-12 items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#123e62] disabled:cursor-not-allowed disabled:opacity-50">
             <FileText className="h-5 w-5" /> Preview pages
           </button>
-          <button type="button" onClick={onBookmark} suppressHydrationWarning style={{color:issueColours.heading,borderColor:issueColours.body}} aria-label={bookmarked ? 'Remove bookmark' : 'Save to bookmarks'} aria-pressed={bookmarked} className="scenic-secondary-action flex h-12 w-12 items-center justify-center rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#123e62]">
-            <Heart className={cn('h-5 w-5', bookmarked && 'fill-[#d97735] text-[#d97735]')} />
+          <button type="button" onClick={onBookmark} suppressHydrationWarning aria-label={bookmarked ? 'Remove bookmark' : 'Save to bookmarks'} aria-pressed={bookmarked} className="scenic-secondary-action flex h-12 w-12 items-center justify-center rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#123e62]">
+            <Heart className={cn('h-5 w-5 text-current', bookmarked && 'fill-[#d97735] text-[#d97735]')} />
           </button>
         </div>
 
         {(issue.file_size_bytes || issue.page_count || sortedTopics.length > 0) && (
-          <div style={{color:issueColours.body}} className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs transition-colors duration-300">
+          <div style={{color:issueColours.body}} className="mt-3 md:mt-4 xl:mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs transition-colors duration-300 font-medium drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
             {issue.file_size_bytes ? <span>{formatFileSize(issue.file_size_bytes)}</span> : null}
             {issue.page_count ? <span>{issue.page_count} pages</span> : null}
             {sortedTopics.map((topic) => <span key={topic}>{topic}</span>)}
