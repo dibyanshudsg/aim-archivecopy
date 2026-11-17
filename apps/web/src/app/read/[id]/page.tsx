@@ -116,7 +116,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
   const [findDrawerOpen, setFindDrawerOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const closeInfoDrawer = useCallback(() => setInfoDrawerOpen(false), []);
-  const [scale, setScale] = useState(0.5);
+  const [scale, setScale] = useState(1.0);
   const [fitWidthScale, setFitWidthScale] = useState<number | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [error, setError] = useState(false);
@@ -305,11 +305,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
         setScale(parsedZoom);
       }
     } else {
-      if (window.innerWidth >= 1024) {
-        setScale(0.5);
-      } else {
-        setScale(1.0);
-      }
+      setScale(1.0);
     }
     setHydrated(true);
   }, []);
@@ -1133,7 +1129,7 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
     }
   };
 
-  // First-time issue reading zoom: 50% on desktop (>=1024px), Fit to size for tablet & phone (<1024px)
+  // First-time issue reading zoom: 100% (1.0) for Desktop & Tablet (>=640px), Fit Width for phone (<640px)
   useEffect(() => {
     if (!pageAspect || typeof window === 'undefined') return;
     let savedScale: number | undefined;
@@ -1148,10 +1144,10 @@ function ReaderContent({ params }: { params: Promise<{ id: string }> }) {
     }
 
     if (savedScale == null) {
-      if (window.innerWidth < 1024) {
+      if (window.innerWidth < 640) {
         fitWidth();
       } else {
-        setScale(0.5);
+        setScale(1.0);
       }
     }
   }, [pageAspect, fitWidth, issue?.id]);
