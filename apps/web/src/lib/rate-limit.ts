@@ -191,3 +191,10 @@ export async function adminLoginRateLimit(request: Request, email?: string) {
   const result = await consumeRateLimit(buckets);
   return result.allowed ? null : rateLimitResponse(result.retryAfter);
 }
+
+export async function adminPasswordResetRateLimit(request: Request, email?: string) {
+  const buckets: Bucket[] = [{ scope: 'reset:ip', identity: clientAddress(request), capacity: 10, windowSeconds: 900 }];
+  if (email) buckets.push({ scope: 'reset:account', identity: email.toLowerCase(), capacity: 4, windowSeconds: 900 });
+  const result = await consumeRateLimit(buckets);
+  return result.allowed ? null : rateLimitResponse(result.retryAfter);
+}

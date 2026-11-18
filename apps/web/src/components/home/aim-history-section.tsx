@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { ChevronDown, ExternalLink } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight, BookOpen, ChevronDown, ExternalLink } from 'lucide-react';
 import { Flame } from '@/components/home/flame';
 import { cn } from '@/lib/utils';
 
@@ -55,7 +56,7 @@ export function AimHistorySection() {
               >
                 <div className="space-y-4 text-sm sm:text-base leading-relaxed text-gray-800">
                   <p>
-                    <span className="font-serif italic font-medium text-flame-900">&ldquo;Matter shall reveal the Spirit&apos;s face&rdquo;</span>, a line from Sri Aurobindo&apos;s epic poem Savitri, was to be the guiding light. The Mother gave specific directions that AIM should carry only the writings of Sri Aurobindo and her own.
+                    <span className="font-serif italic font-medium text-flame-900">&ldquo;Matter shall reveal the Spirit&apos;s face&rdquo;</span>, a line from Sri Aurobindo&apos;s epic poem <em className="font-serif italic font-medium text-flame-600">Savitri</em>, was to be the guiding light. The Mother gave specific directions that AIM should carry <em className="italic">only</em> the writings of Sri Aurobindo and her own.
                   </p>
 
                   <p>
@@ -117,6 +118,32 @@ export function AimHistorySection() {
                   )}
                 />
               </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Note on Archive Digitisation */}
+        <div className="mt-8 border-t border-amber-200/60 pt-6">
+          <div className="flex items-start gap-3.5 rounded-2xl border border-amber-200/80 bg-white/75 p-4 sm:p-5 shadow-[0_4px_16px_rgba(120,84,28,0.04)]">
+            <BookOpen className="mt-0.5 h-5 w-5 shrink-0 text-flame-600" aria-hidden="true" />
+            <div className="flex-1 space-y-2.5">
+              <div>
+                <h4 className="font-heading text-xs sm:text-sm font-bold tracking-wider uppercase text-flame-900">
+                  Note on Archive Digitisation
+                </h4>
+                <p className="mt-1 text-xs sm:text-sm leading-relaxed text-gray-700">
+                  We are actively working to digitise and upload the complete archives of both <em className="italic font-medium text-flame-900">All India Magazine</em> and <em className="italic font-medium text-flame-900">Agnishikha</em>, spanning every issue since their inception in 1971. Because the earlier decades exist solely as physical print copies, each vintage edition requires careful high-resolution scanning, digital restoration, and recreation before it can be published online. We appreciate your patience and support as this monumental preservation effort unfolds.
+                </p>
+              </div>
+              <div className="flex justify-end pt-0.5">
+                <Link
+                  href="/browse?availability=all&sort=date&dir=asc"
+                  className="group inline-flex items-center gap-1.5 rounded-xl border border-flame-200/90 bg-gradient-to-r from-gold-50/90 via-white to-flame-50/90 px-3.5 py-1.5 text-xs font-semibold text-flame-900 shadow-2xs transition-all hover:border-flame-300 hover:bg-flame-100/80 hover:text-flame-950 hover:shadow-xs active:scale-[0.98]"
+                >
+                  <span>View earliest available issues</span>
+                  <ArrowRight className="h-3.5 w-3.5 text-flame-600 transition-transform group-hover:translate-x-0.5" />
+                </Link>
+              </div>
             </div>
           </div>
         </div>

@@ -1,5 +1,18 @@
 # AIM Archive — To Do List
 
+
+____________________
+
+
+- [x] **Home History Section Text Corrections**: "Matter shall reveal the Spirit’s face" verified, *Savitri* in italics + flame orange, *only* in italics.
+- [x] **Archive Digitisation Note (History Section)**: Added comprehensive archival note with "View earliest available issues" button linking to `/browse?availability=all&sort=date&dir=asc`.
+- [x] **Archive Growth Note (Bookshelf Section)**: Displayed permanently for all years at the bottom of the shelf with updated wording.
+- [x] **Admin Forgot Password Flow**: Full implementation with Resend email delivery, Turso migration `00014_admin_password_resets`, token hashing, replay protection, rate limiting, and dedicated UI pages.
+
+
+_______________
+
+
 Updated: 31 October 2026. This is the single active task tracker for AIM Archive. Society acceptance is owner-reported and the owner continues participating. Final operational acceptance and responsibility transfer remain open unless explicitly checked with evidence.
 
 ## Remaining work — priority order

@@ -1539,7 +1539,7 @@ export function AnimatedBookshelf({ issues: suppliedIssues, years, archiveGrowth
               )}
             </div>
           )}
-          {!yearLoading && !yearError && selectedYear === minYear && (
+          {!yearLoading && !yearError && (
             <div className="mx-auto mt-7 flex max-w-2xl items-start gap-3 rounded-2xl border border-gold-200/80 bg-white/80 px-4 py-3.5 text-left shadow-[0_10px_30px_rgba(120,84,28,0.07)]">
               <LibraryBig className="mt-0.5 h-5 w-5 shrink-0 text-flame-600" aria-hidden="true" />
               <p className="text-sm leading-relaxed text-gray-600">{archiveGrowthNote}</p>

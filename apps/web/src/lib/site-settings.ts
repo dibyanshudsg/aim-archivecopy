@@ -15,5 +15,5 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   archive_intro_description:
     'A living archive of All India Magazine and Agnishikha, offering a gateway to the timeless wisdom of Sri Aurobindo and the Mother. Discover their illuminating vision of life, the evolution of consciousness, and the spiritual transformation of earthly existence.',
   archive_growth_note:
-    'Earlier editions are being carefully extracted, reviewed, and added to the archive in stages. More issues will appear here as this work continues.',
+    'Earlier editions of both All India Magazine and Agnishikha from 1971 onwards are being carefully digitised, reviewed, and added to the archive in stages. More issues will appear here as each collection is completed.',
 };

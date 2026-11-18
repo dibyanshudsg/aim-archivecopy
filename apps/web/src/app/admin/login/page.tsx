@@ -104,7 +104,15 @@ export default function AdminLoginPage() {
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Password</label>
+              <div className="mb-1 flex items-center justify-between">
+                <label className="text-sm font-medium text-gray-700">Password</label>
+                <Link
+                  href="/admin/forgot-password"
+                  className="text-xs font-semibold text-flame-700 hover:text-flame-900 transition-colors"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
