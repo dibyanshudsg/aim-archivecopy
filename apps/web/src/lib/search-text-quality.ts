@@ -33,51 +33,36 @@ function escapeHtml(text: string) {
  * noise. Unreliable old indexes remain searchable without publishing gibberish. */
 export function buildSearchSnippet(content: string, query: string, page: number): string {
   const needle = cleanExtractedText(query).toLocaleLowerCase();
-  if (!needle) return `Match found on page ${page}.`;
-
-  // Normalize PDF newlines and broken hyphenation across line breaks
-  const normalized = content
-    .normalize('NFC')
-    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, '')
-    .replace(/(\p{L})-\s*\n\s*(\p{L})/gu, '$1$2')
-    .replace(/\s+/gu, ' ')
-    .trim();
-
-  const lower = normalized.toLocaleLowerCase();
-  const index = lower.indexOf(needle);
-  if (index === -1) return `Match found on page ${page}.`;
-
-  // Comfortable snippet window around needle (~160-220 characters)
-  const windowBefore = 70;
-  const windowAfter = 140;
-
-  let start = Math.max(0, index - windowBefore);
-  let end = Math.min(normalized.length, index + needle.length + windowAfter);
-
-  // Snap start to previous word boundary
+  const flat = cleanExtractedText(content);
+  const candidates = content.split(/\n+|(?<=[.!?।])\s+/u).map(cleanExtractedText);
+  // A phrase can span two physical lines.
+  const lineCount = candidates.length;
+  for (let i = 0; i < lineCount - 1; i++) {
+    if (
+      !candidates[i].toLocaleLowerCase().includes(needle) &&
+      !candidates[i + 1].toLocaleLowerCase().includes(needle)
+    ) {
+      const joined = `${candidates[i]} ${candidates[i + 1]}`;
+      if (joined.toLocaleLowerCase().includes(needle)) candidates.push(joined);
+    }
+  }
+  const match =
+    candidates.find(
+      (value) => value.toLocaleLowerCase().includes(needle) && isReadableText(value),
+    ) || (flat.toLocaleLowerCase().includes(needle) && isReadableText(flat) ? flat : '');
+  if (!needle || !match) return `Match found on page ${page}.`;
+  const index = match.toLocaleLowerCase().indexOf(needle);
+  let start = Math.max(0, index - 80);
+  let end = Math.min(match.length, Math.max(index + needle.length + 120, start + 220));
   if (start > 0) {
-    const spaceIndex = normalized.lastIndexOf(' ', start + 15);
-    if (spaceIndex > 0 && spaceIndex < index) {
-      start = spaceIndex + 1;
-    }
+    const space = match.indexOf(' ', start);
+    if (space >= 0 && space < index) start = space + 1;
   }
-
-  // Snap end to next word boundary
-  if (end < normalized.length) {
-    const spaceIndex = normalized.indexOf(' ', end - 15);
-    if (spaceIndex !== -1 && spaceIndex > index + needle.length) {
-      end = spaceIndex;
-    }
+  if (end < match.length) {
+    const space = match.lastIndexOf(' ', end);
+    if (space > index + needle.length) end = space;
   }
-
-  let excerptText = normalized.slice(start, end).trim();
-  // Strip trailing dangling punctuation like solitary hyphens
-  excerptText = excerptText.replace(/[-–—,:;]$/, '').trim();
-
-  const prefix = start > 0 ? '… ' : '';
-  const suffix = end < normalized.length ? ' …' : '';
-  const excerpt = `${prefix}${excerptText}${suffix}`;
-
+  const excerpt = `${start > 0 ? '… ' : ''}${match.slice(start, end)}${end < match.length ? ' …' : ''}`;
   const safe = escapeHtml(excerpt);
   const escapedQuery = escapeHtml(cleanExtractedText(query)).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return safe.replace(new RegExp(`(${escapedQuery})`, 'giu'), '<mark>$1</mark>');

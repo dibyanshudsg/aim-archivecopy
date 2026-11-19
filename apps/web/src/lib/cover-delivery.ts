@@ -21,24 +21,6 @@ function rasterType(bytes: Uint8Array): string | null {
   return null;
 }
 
-interface CachedCover {
-  body: Buffer;
-  type: string;
-  size: number;
-  etag: string;
-}
-const coverMemoryCache = new Map<string, CachedCover>();
-const MAX_COVER_CACHE_ENTRIES = 250;
-
-export function clearCoverMemoryCache(id?: string) {
-  if (id) {
-    coverMemoryCache.delete(`i:${id}`);
-    coverMemoryCache.delete(`m:${id}`);
-  } else {
-    coverMemoryCache.clear();
-  }
-}
-
 const defaults = { locator: coverLocator, client: getR2Client, bucket: r2Bucket, admin: currentAdmin };
 export function createCoverDelivery(overrides: Partial<typeof defaults> = {}) {
   const deps = { ...defaults, ...overrides };
@@ -47,36 +29,6 @@ export function createCoverDelivery(overrides: Partial<typeof defaults> = {}) {
     if (!validCatalogueId(id)) return fail(404);
     try {
       if (admin && !await deps.admin()) return fail(401);
-
-      const cacheKey = `${magazine ? 'm' : 'i'}:${id}`;
-      if (!admin) {
-        const cached = coverMemoryCache.get(cacheKey);
-        if (cached) {
-          const ifNoneMatch = request.headers.get('if-none-match');
-          if (ifNoneMatch && ifNoneMatch === cached.etag) {
-            return new Response(null, {
-              status: 304,
-              headers: {
-                ...PDF_HEADERS,
-                'Content-Type': cached.type,
-                'ETag': cached.etag,
-                'Cache-Control': 'public, max-age=31536000, immutable',
-              },
-            });
-          }
-          return new Response(request.method === 'HEAD' ? null : new Uint8Array(cached.body), {
-            headers: {
-              ...PDF_HEADERS,
-              'Content-Type': cached.type,
-              'Content-Length': String(cached.size),
-              'Content-Disposition': 'inline',
-              'ETag': cached.etag,
-              'Cache-Control': 'public, max-age=31536000, immutable',
-            },
-          });
-        }
-      }
-
       const locator = await deps.locator(id, magazine, admin);
       const key = locator ? assetKeyFromLocator(locator) : null;
       if (!key || !/\.(png|jpe?g|webp)$/i.test(key)) return fail(404);
@@ -104,23 +56,8 @@ export function createCoverDelivery(overrides: Partial<typeof defaults> = {}) {
       const type = rasterType(body);
       if (size !== object.ContentLength || !type || type !== object.ContentType || await deps.locator(id, magazine, admin) !== locator) return fail(404);
       if (admin && !await deps.admin()) return fail(401);
-
-      const etag = `W/"${size}-${id.slice(0, 8)}"`;
-      if (!admin) {
-        if (coverMemoryCache.size >= MAX_COVER_CACHE_ENTRIES) {
-          const firstKey = coverMemoryCache.keys().next().value;
-          if (firstKey) coverMemoryCache.delete(firstKey);
-        }
-        coverMemoryCache.set(cacheKey, { body, type, size, etag });
-      }
-
-      return new Response(request.method === 'HEAD' ? null : new Uint8Array(body), { headers: {
-        ...PDF_HEADERS,
-        'Content-Type': type,
-        'Content-Length': String(size),
-        'Content-Disposition': 'inline',
-        'ETag': etag,
-        'Cache-Control': 'public, max-age=31536000, immutable',
+      return new Response(request.method === 'HEAD' ? null : body, { headers: {
+        ...PDF_HEADERS, 'Content-Type': type, 'Content-Length': String(size), 'Content-Disposition': 'inline',
       } });
     } catch (error) {
       return fail((error as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode === 404 ? 404 : 503);
