@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -19,8 +19,16 @@ export function Pagination({ current, total, onChange, className }: Props) {
   return (
     <nav
       aria-label="Pagination"
-      className={cn('mt-10 flex items-center justify-center gap-1.5', className)}
+      className={cn('flex items-center justify-center gap-1.5', className)}
     >
+      <PageButton
+        ariaLabel="First page"
+        disabled={current === 1}
+        onClick={() => onChange(1)}
+      >
+        <ChevronsLeft className="h-4 w-4" />
+      </PageButton>
+
       <PageButton
         ariaLabel="Previous page"
         disabled={current === 1}
@@ -34,7 +42,7 @@ export function Pagination({ current, total, onChange, className }: Props) {
           <span
             key={`e-${idx}`}
             aria-hidden
-            className="flex h-9 w-9 items-center justify-center text-sm text-gray-400 select-none"
+            className="flex h-11 w-6 items-center justify-center text-sm text-gray-400 select-none"
           >
             …
           </span>
@@ -54,6 +62,14 @@ export function Pagination({ current, total, onChange, className }: Props) {
         onClick={() => onChange(current + 1)}
       >
         <ChevronRight className="h-4 w-4" />
+      </PageButton>
+
+      <PageButton
+        ariaLabel="Last page"
+        disabled={current === total}
+        onClick={() => onChange(total)}
+      >
+        <ChevronsRight className="h-4 w-4" />
       </PageButton>
     </nav>
   );
@@ -76,11 +92,12 @@ function PageButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={ariaLabel}
+      title={ariaLabel}
       className={cn(
-        'flex h-9 w-9 items-center justify-center rounded-lg border text-gray-600 transition-colors',
+        'flex h-11 w-11 items-center justify-center rounded-xl border text-gray-600 transition-colors',
         disabled
           ? 'cursor-not-allowed border-gray-100 bg-white text-gray-300'
-          : 'border-gray-200 bg-white hover:border-flame-300 hover:bg-flame-50 hover:text-flame-700',
+          : 'border-flame-200 bg-white hover:border-flame-300 hover:bg-flame-50 hover:text-flame-700 shadow-sm',
       )}
     >
       {children}
@@ -104,10 +121,10 @@ function PageNumber({
       aria-current={active ? 'page' : undefined}
       aria-label={`Page ${page}`}
       className={cn(
-        'relative flex h-9 min-w-9 items-center justify-center rounded-lg px-3 text-sm font-medium tabular-nums transition-colors',
+        'relative flex h-11 min-w-11 items-center justify-center rounded-xl px-3 text-sm font-medium tabular-nums transition-colors',
         active
           ? 'bg-gradient-to-r from-gold-500 to-flame-500 text-white shadow-[0_6px_16px_rgba(190,140,46,0.22)]'
-          : 'border border-gray-200 bg-white text-gray-700 hover:border-flame-300 hover:bg-flame-50 hover:text-flame-700',
+          : 'border border-flame-200 bg-white text-gray-700 hover:border-flame-300 hover:bg-flame-50 hover:text-flame-700 shadow-sm',
       )}
     >
       {page}

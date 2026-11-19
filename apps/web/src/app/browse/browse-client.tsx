@@ -770,18 +770,16 @@ function BrowseContent({
               </span>
             </div>
 
-            {totalPages > 1 && (
-              <div className="hidden lg:flex">
-                <Pagination
-                  current={currentPage}
-                  total={totalPages}
-                  onChange={handlePageChange}
-                  className="mt-0"
-                />
-              </div>
-            )}
-
-            <div className="ml-auto flex flex-wrap items-center gap-2 sm:gap-3">
+            <div className="ml-auto flex items-center gap-2 sm:gap-3">
+              {totalPages > 1 && (
+                <div className="hidden lg:flex items-center">
+                  <Pagination
+                    current={currentPage}
+                    total={totalPages}
+                    onChange={handlePageChange}
+                  />
+                </div>
+              )}
               <SortMenu sort={filters.sort} dir={filters.dir} onChange={setSortChoice} />
               <button
                 type="button"
@@ -854,6 +852,7 @@ function BrowseContent({
               current={currentPage}
               total={totalPages}
               onChange={handlePageChange}
+              className="mt-10"
             />
           )}
         </div>
