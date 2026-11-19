@@ -8,7 +8,10 @@ import { BookOpenText } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { LatestSubscriberEditions } from '@/components/home/latest-subscriber-editions';
-import { AimHistorySection } from '@/components/home/aim-history-section';
+
+const AimHistorySection = dynamic(() =>
+  import('@/components/home/aim-history-section').then((module) => module.AimHistorySection),
+);
 
 import { ThisMonthFeatured } from '@/components/home/this-month-featured';
 import type { ApiIssue, ApiMagazine } from '@/lib/api';

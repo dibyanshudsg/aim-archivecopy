@@ -2,6 +2,7 @@
 import { TtlCache } from '@/lib/ttl-cache';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowUp,
@@ -15,10 +16,22 @@ import { IssueCard } from '@/components/magazine/issue-card';
 import { FilterPanel } from '@/components/browse/filter-panel';
 import { ViewToggle } from '@/components/browse/view-toggle';
 import { ActiveFilterChips } from '@/components/browse/active-filter-chips';
-import { IssueListView } from '@/components/browse/issue-list-view';
 import { Pagination } from '@/components/browse/pagination';
-import { BulkActionBar } from '@/components/browse/bulk-action-bar';
-import { BulkDownloadModal } from '@/components/browse/bulk-download-modal';
+
+const IssueListView = dynamic(
+  () => import('@/components/browse/issue-list-view').then((mod) => mod.IssueListView),
+  { ssr: false },
+);
+
+const BulkActionBar = dynamic(
+  () => import('@/components/browse/bulk-action-bar').then((mod) => mod.BulkActionBar),
+  { ssr: false },
+);
+
+const BulkDownloadModal = dynamic(
+  () => import('@/components/browse/bulk-download-modal').then((mod) => mod.BulkDownloadModal),
+  { ssr: false },
+);
 import { SortMenu } from '@/components/browse/sort-menu';
 import { BrowseContextControls } from '@/components/browse/browse-context-controls';
 import { AvailabilityTabs, MobileAvailabilityMenu, availabilityOptions } from '@/components/browse/availability-tabs';
@@ -33,7 +46,7 @@ import { useBrowseFilters } from '@/lib/use-browse-filters';
 import type { BrowseFilters } from '@/lib/use-browse-filters';
 import type { AvailabilityFilter, BrowseFacets } from '@/lib/public-issues';
 import { useBulkSelection } from '@/lib/use-bulk-selection';
-import { downloadAsZip, type ZipDownloadProgress } from '@/lib/download-zip';
+import type { ZipDownloadProgress } from '@/lib/download-zip';
 import { HeaderSearchDropdown } from '@/components/browse/header-search-dropdown';
 import { useSearchDropdown } from '@/lib/use-search-dropdown';
 import type { PublicNavigation } from '@/lib/navigation';
@@ -608,6 +621,7 @@ function BrowseContent({
     });
     setDownloadOpen(true);
     try {
+      const { downloadAsZip } = await import('@/lib/download-zip');
       await downloadAsZip({
         files: downloadable.map((i) => ({ name: i.title, url: i.pdf_url, sizeBytes: i.file_size_bytes })),
         zipName: `AIM Archive — ${downloadable.length} issue${downloadable.length === 1 ? '' : 's'}`,
