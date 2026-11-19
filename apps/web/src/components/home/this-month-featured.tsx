@@ -9,7 +9,6 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowRight,
-  ArrowLeft,
   BookOpen,
   CalendarDays,
   ChevronLeft,
@@ -118,7 +117,7 @@ function heroColours(palette: CoverPalette, theme?: HeroPresentationTheme | null
 }
 const TRANSPARENT_PIXEL = 'data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=';
 
-function ScenicBackground({ src, media, sizes, className, animateEntrance = false, onReady }: {
+function ScenicBackground({ src, media, sizes, className, onReady }: {
   src: string | StaticImageData;
   media: string;
   sizes: string;
@@ -218,7 +217,6 @@ export function ThisMonthFeatured({
   archiveIssues,
   onPreviewChange,
 }: ThisMonthFeaturedProps) {
-  const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const swipeStartRef = useRef<{x:number;y:number;identifier:number}|null>(null);
   const pendingSelectionRef = useRef<string | null>(null);
@@ -324,6 +322,7 @@ export function ThisMonthFeatured({
     const requestedIndex = requested ? visibleIssues.findIndex((issue) => issue.id === requested) : -1;
     if (requestedIndex >= 0) pendingSelectionRef.current = null;
     setCurrentIndex(requestedIndex >= 0 ? requestedIndex : Math.max(0, visibleIssues.length - 1));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only reset to newest when user toggles filter or month
   }, [magazineFilter, showPrevious]);
 
   useEffect(() => {
@@ -1074,7 +1073,6 @@ function IssueInfoDrawer({
   onBookmark: () => void;
 }) {
   const drawerRef = useRef<HTMLElement>(null);
-  const monthName = MONTH_NAMES[issue.month as MonthIndex];
 
   useEffect(() => {
     if (!open) return;

@@ -266,6 +266,7 @@ export default function SlideReader({
               className="group flex min-w-0 flex-1 sm:flex-initial sm:max-w-[280px] lg:max-w-md shrink items-center gap-2 rounded-xl border border-flame-100/90 bg-gradient-to-br from-white to-flame-50/40 p-1.5 text-left shadow-xs transition-colors hover:border-flame-200 hover:bg-flame-50/60 cursor-pointer sm:px-2.5"
             >
               {fallbackCoverUrl && (
+                // eslint-disable-next-line @next/next/no-img-element -- Thumbnail in preview button
                 <img
                   src={fallbackCoverUrl}
                   alt=""
@@ -570,39 +571,6 @@ export default function SlideReader({
             )}
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-function PdfLoadingSpread({
-  coverUrl,
-  title,
-  pageWidth,
-  isSpread,
-  decorative = false,
-}: {
-  coverUrl: string;
-  title: string;
-  pageWidth: number;
-  isSpread: boolean;
-  decorative?: boolean;
-}) {
-  return (
-    <div className="flex h-full w-full items-center justify-center">
-      <div
-        className={cn(
-          'flex h-full max-h-full items-center justify-center',
-          isSpread ? 'gap-2' : 'gap-0',
-        )}
-      >
-        <PdfCoverImage
-          coverUrl={coverUrl}
-          title={title}
-          pageWidth={pageWidth}
-          decorative={decorative}
-        />
-        {isSpread && <PageTurnSkeleton width={pageWidth} />}
       </div>
     </div>
   );

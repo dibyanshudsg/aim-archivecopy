@@ -55,7 +55,6 @@ import { useInitialReaderIssue } from './reader-issue-context';
 import { AccessNotice } from '@/components/magazine/access-notice';
 import { ReportProblem } from '@/components/magazine/report-problem';
 import { Flame } from '@/components/home/flame';
-import { ReaderOpeningState } from '@/components/reader/reader-opening-state';
 
 configurePdfWorker(pdfjs);
 

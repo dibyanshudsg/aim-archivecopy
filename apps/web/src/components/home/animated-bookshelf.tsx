@@ -263,7 +263,7 @@ function IssueBook({
         if (pageRenderPromisesRef.current[pageNumber] === renderPromise) delete pageRenderPromisesRef.current[pageNumber];
       }
     },
-    [issue.page_count, numPages],
+    [issue.cover_image_url, issue.page_count, numPages],
   );
 
   useEffect(() => {
@@ -894,14 +894,13 @@ function PdfPreviewPage({
   pageNumber,
   pageImage,
   numPages,
-  loading,
   error,
   coverUrl,
 }: {
   pageNumber: number;
   pageImage?: string;
   numPages: number;
-  loading: boolean;
+  loading?: boolean;
   error: boolean;
   coverUrl?: string | null;
 }) {

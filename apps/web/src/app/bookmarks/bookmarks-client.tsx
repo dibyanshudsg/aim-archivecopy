@@ -138,6 +138,8 @@ export function BookmarksClient({ navigation }: BookmarksClientProps) {
     typeof window !== 'undefined' ? useBookmarks.persist.hasHydrated() : false
   );
   const [allIssues, setAllIssues] = useState<ApiIssue[]>([]);
+  const allIssuesRef = useRef(allIssues);
+  allIssuesRef.current = allIssues;
   const [issuesLoading, setIssuesLoading] = useState(() => {
     if (typeof window === 'undefined') return true;
     return useBookmarks.getState().bookmarkedIds.length > 0;
@@ -280,8 +282,8 @@ export function BookmarksClient({ navigation }: BookmarksClientProps) {
     // skip the network fetch and loading screen entirely! The cards will smoothly and immediately adjust via useMemo.
     const allAlreadyLoaded =
       bookmarkedIds.length > 0 &&
-      allIssues.length > 0 &&
-      bookmarkedIds.every((id) => allIssues.some((issue) => issue.id === id));
+      allIssuesRef.current.length > 0 &&
+      bookmarkedIds.every((id) => allIssuesRef.current.some((issue) => issue.id === id));
 
     if (allAlreadyLoaded && !manualRetryRef.current) {
       setIssuesLoading(false);
