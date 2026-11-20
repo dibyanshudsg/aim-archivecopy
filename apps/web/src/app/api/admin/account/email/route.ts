@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdmin, createSessionToken, ADMIN_COOKIE, SESSION_TTL_SECONDS } from '@/lib/admin-auth';
 import { verifyAdminPassword } from '@/lib/admin-password';
-import { findAdminAccount, updateOwnerEmail, isRemovedAdminEmail } from '@/lib/db/admin-accounts';
+import { findAdminAccount, updateOwnerEmail } from '@/lib/db/admin-accounts';
 import { getDb } from '@/lib/db/client';
 import { sameOrigin } from '@/lib/admin-request';
 import { adminMutationRateLimit } from '@/lib/rate-limit';
@@ -53,10 +53,6 @@ export async function POST(request: NextRequest) {
   });
   if (existing.rows.length > 0) {
     return NextResponse.json({ error: 'This email address is already in use by another admin.' }, { status: 400 });
-  }
-
-  if (await isRemovedAdminEmail(newEmail)) {
-    return NextResponse.json({ error: 'This email address is reserved or removed.' }, { status: 400 });
   }
 
   try {

@@ -124,6 +124,7 @@ export async function updateOwnAdminName(adminId: string, name: string): Promise
 export async function updateOwnerEmail(adminId: string, newEmail: string): Promise<void> {
   const normalized = newEmail.toLowerCase().trim();
   await getDb().batch([
+    { sql: 'DELETE FROM admin_account_removals WHERE email_hash=?', args: [removedEmailHash(normalized)] },
     { sql: "UPDATE admins SET email=?, session_version=session_version+1 WHERE id=? AND role_id='owner'", args: [normalized, adminId] },
     auditStatement(adminId, 'admin.email.updated', adminId, normalized),
   ], 'write');
