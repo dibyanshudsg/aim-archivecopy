@@ -12,6 +12,7 @@ import { AdminDialog } from '../admin-dialog';
 interface ProfileAccount {
   name: string;
   email: string;
+  roleId?: string;
   roleName: string;
   isActive: boolean;
   permissions: string[];
@@ -22,12 +23,18 @@ export function AdminProfileClient({ account }: { account: ProfileAccount }) {
   const { toast } = useUI();
   const fileRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(account.name);
+  const [email, setEmail] = useState(account.email);
   const [editingName, setEditingName] = useState(false);
   const [savingName, setSavingName] = useState(false);
   const [savingAvatar, setSavingAvatar] = useState(false);
   const [avatarVersion, setAvatarVersion] = useState(0);
   const [error, setError] = useState('');
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [emailError, setEmailError] = useState('');
 
   function refreshAvatar() {
     setAvatarVersion(Date.now());
@@ -70,6 +77,36 @@ export function AdminProfileClient({ account }: { account: ProfileAccount }) {
     finally { setSavingName(false); }
   }
 
+  function openEmailDialog() {
+    setNewEmail('');
+    setCurrentPassword('');
+    setEmailError('');
+    setEmailDialogOpen(true);
+  }
+
+  async function saveEmail(event: React.FormEvent) {
+    event.preventDefault();
+    setSavingEmail(true);
+    setEmailError('');
+    try {
+      const response = await fetch('/api/admin/account/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newEmail, currentPassword }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not update email address');
+      setEmail(result.email);
+      setEmailDialogOpen(false);
+      router.refresh();
+      toast.success('Owner email updated successfully');
+    } catch (cause) {
+      setEmailError(cause instanceof Error ? cause.message : 'Could not update email address');
+    } finally {
+      setSavingEmail(false);
+    }
+  }
+
   return <div className="mx-auto max-w-5xl space-y-6">
     <AdminPageTitle title="Your profile" description="Manage how your admin identity appears and keep your account secure." />
     {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
@@ -85,7 +122,7 @@ export function AdminProfileClient({ account }: { account: ProfileAccount }) {
           </div>
         </div>
         <h2 id="profile-heading" className="font-heading mt-4 text-2xl font-semibold text-gray-900">{name}</h2>
-        <p className="mt-1 text-sm text-gray-600">{account.email}</p>
+        <p className="mt-1 text-sm text-gray-600">{email}</p>
         <p className="mt-3 text-xs text-gray-500">Square PNG, JPEG or WebP, at least 64 × 64 pixels, up to 3 MB. The photo appears in your admin profile and sidebar.</p>
       </div>
     </section>
@@ -97,7 +134,30 @@ export function AdminProfileClient({ account }: { account: ProfileAccount }) {
             {editingName ? <form onSubmit={saveName} className="mt-2 flex flex-wrap gap-2"><input aria-label="Display name" autoFocus minLength={2} maxLength={80} required value={name} onChange={(event) => setName(event.target.value)} className="min-h-10 min-w-0 flex-1 rounded-xl border border-gray-300 px-3 text-sm focus:border-flame-500 focus:outline-none" /><button disabled={savingName} className="inline-flex items-center gap-2 rounded-xl bg-flame-600 px-4 text-sm font-semibold text-white disabled:opacity-50"><Check className="h-4 w-4" />Save</button><button type="button" onClick={() => { setName(account.name); setEditingName(false); }} className="rounded-xl border border-gray-200 px-4 text-sm text-gray-600">Cancel</button></form>
               : <div className="mt-2 flex items-center justify-between gap-3"><span className="font-medium text-gray-900">{name}</span><button type="button" onClick={() => setEditingName(true)} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-gray-200 px-3 text-sm font-medium text-flame-700 hover:bg-flame-50"><Pencil className="h-4 w-4" />Edit</button></div>}
           </div>
-          <div className="border-t border-gray-100 pt-5"><p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Sign-in email</p><p className="mt-2 flex items-center gap-2 text-sm font-medium text-gray-900"><Mail className="h-4 w-4 text-gray-400" />{account.email}</p></div>
+          <div className="border-t border-gray-100 pt-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Sign-in email</p>
+                <p className="mt-2 flex items-center gap-2 text-sm font-medium text-gray-900">
+                  <Mail className="h-4 w-4 text-gray-400" />
+                  <span>{email}</span>
+                </p>
+              </div>
+              {account.roleId === 'owner' && (
+                <button
+                  type="button"
+                  onClick={openEmailDialog}
+                  className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-gray-200 px-3 text-sm font-medium text-flame-700 hover:bg-flame-50"
+                >
+                  <Pencil className="h-4 w-4" />
+                  Edit
+                </button>
+              )}
+            </div>
+            {account.roleId === 'owner' && (
+              <p className="mt-1 text-xs text-gray-500">As the Owner, you can update your sign-in email with current password confirmation.</p>
+            )}
+          </div>
           <div className="border-t border-gray-100 pt-5"><p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Access role</p><p className="mt-2 flex items-center gap-2 text-sm font-medium text-gray-900"><ShieldCheck className="h-4 w-4 text-flame-600" />{account.roleName}</p><p className="mt-1 text-xs text-gray-500">{account.permissions.length} permissions assigned by your role.</p></div>
           <div className="border-t border-gray-100 pt-5"><p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Account status</p><p className="mt-2 inline-flex items-center gap-2 rounded-full bg-green-50 px-3 py-1 text-sm font-medium text-green-800"><span className="h-2 w-2 rounded-full bg-green-500" />{account.isActive ? 'Active' : 'Inactive'}</p></div>
         </div>
@@ -105,5 +165,91 @@ export function AdminProfileClient({ account }: { account: ProfileAccount }) {
       <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8" aria-labelledby="security-heading"><span className="inline-flex rounded-xl bg-flame-50 p-2.5 text-flame-700"><KeyRound className="h-5 w-5" /></span><h2 id="security-heading" className="font-heading mt-4 text-lg font-semibold text-gray-900">Password & security</h2><p className="mt-2 text-sm leading-6 text-gray-600">Change your password regularly and use a unique one with at least 12 characters.</p><button type="button" onClick={() => setPasswordDialogOpen(true)} className="mt-5 inline-flex min-h-10 items-center rounded-xl bg-gray-900 px-4 text-sm font-semibold text-white hover:bg-gray-700">Change password</button></section>
     </div>
     {passwordDialogOpen && <AdminDialog label="Change password" onClose={() => setPasswordDialogOpen(false)}><AdminPasswordForm inDialog onSuccess={() => { setPasswordDialogOpen(false); toast.success('Password updated successfully'); }} /></AdminDialog>}
+    {emailDialogOpen && (
+      <AdminDialog label="Change Owner email address" onClose={() => !savingEmail && setEmailDialogOpen(false)} busy={savingEmail}>
+        <form onSubmit={saveEmail} className="space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-flame-50 text-flame-600">
+              <Mail className="h-5 w-5" />
+            </span>
+            <div>
+              <h3 className="font-heading text-lg font-semibold text-gray-900">Change Owner email</h3>
+              <p className="text-xs text-gray-500">Update the primary sign-in email for your account.</p>
+            </div>
+          </div>
+
+          {emailError && (
+            <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {emailError}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+              Current email
+            </label>
+            <input
+              type="email"
+              disabled
+              value={email}
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500 cursor-not-allowed"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="new-owner-email" className="block text-xs font-semibold uppercase tracking-wide text-gray-700 mb-1">
+              New email address
+            </label>
+            <input
+              id="new-owner-email"
+              type="email"
+              required
+              autoFocus
+              placeholder="owner@example.com"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-flame-500 focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="current-password-verify" className="block text-xs font-semibold uppercase tracking-wide text-gray-700 mb-1">
+              Confirm current password
+            </label>
+            <input
+              id="current-password-verify"
+              type="password"
+              required
+              autoComplete="current-password"
+              placeholder="••••••••••••"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-flame-500 focus:outline-none"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Enter your current password to authorize this security change.
+            </p>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
+            <button
+              type="button"
+              disabled={savingEmail}
+              onClick={() => setEmailDialogOpen(false)}
+              className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={savingEmail || !newEmail || !currentPassword}
+              className="inline-flex items-center gap-2 rounded-xl bg-flame-600 px-4 py-2 text-sm font-semibold text-white hover:bg-flame-700 disabled:opacity-50"
+            >
+              {savingEmail ? 'Updating email…' : 'Update email'}
+            </button>
+          </div>
+        </form>
+      </AdminDialog>
+    )}
   </div>;
 }

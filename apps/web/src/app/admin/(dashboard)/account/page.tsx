@@ -10,6 +10,7 @@ export default async function AdminAccountPage() {
   return <AdminProfileClient account={{
     name: admin.name,
     email: admin.email,
+    roleId: admin.roleId,
     roleName: admin.roleName,
     isActive: admin.isActive,
     permissions: [...admin.permissions],
