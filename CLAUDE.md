@@ -200,7 +200,7 @@ Runtime configuration is stored privately in `apps/web/.env.local` and Vercel; n
 
 ## 9. Delivery Status
 
-The public website is deployed at https://aim-archive.vercel.app. Build and browser verification evidence is in the [latest release report](PRODUCTION_RELEASE_2026-09-19.md). A deployed website does not imply completion of admin mutation checks, worker source synchronization or native mobile development.
+The official production website is launched at https://aim.aurosociety.org (hosted on the Society Vercel deployment https://all-india-magazine.vercel.app). The former project URL https://aim-archive.vercel.app is a legacy deployment to be decommissioned safely. A deployed website does not imply completion of admin mutation checks, worker source synchronization or native mobile development.
 
 ---
 
@@ -316,7 +316,7 @@ The website uses Vercel, Turso and R2. Manual indexing uses GitHub Actions. Publ
 
 ## 16. Deployment Flow
 
-The existing Vercel project is `aim-archive`, linked through `.vercel/project.json`; production is https://aim-archive.vercel.app.
+The production site is deployed on the Society Vercel project at https://all-india-magazine.vercel.app with the custom domain https://aim.aurosociety.org. The former project https://aim-archive.vercel.app is retained temporarily until safely decommissioned.
 
 1. Verify the intended changes and run `pnpm.cmd build` from `apps/web`, plus checks appropriate to the change.
 2. Check required private configuration: Turso database URL/token, R2 settings, independent Admin session secret and public app URL. GitHub Admin dispatch additionally requires the connection described in [GITHUB_INDEXING.md](GITHUB_INDEXING.md).

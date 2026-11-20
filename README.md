@@ -4,7 +4,7 @@ Web archive for Sri Aurobindo Society's All India Magazine and existing Hindi Ag
 
 ## Receiving this source
 
-GitHub `main` contains the current deployed web source for Dibyanshu Ji and Society IT. The 17 October security release is live at `https://aim-archive.vercel.app`; this review deployment is not a declaration of final operational acceptance or official public launch. Read the [current handover status](docs/handover/CURRENT_STATUS_2026-10-17.md) before older dated reports.
+GitHub `main` contains the deployed web source for Dibyanshu Ji and Society IT. The official production website is live at `https://aim.aurosociety.org` (Vercel deployment: `https://all-india-magazine.vercel.app`). The legacy staging link `https://aim-archive.vercel.app` is retained until decommissioned. Read the [current handover status](docs/handover/CURRENT_STATUS_2026-10-17.md) before older dated reports.
 
 Start here:
 

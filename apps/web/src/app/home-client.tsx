@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { BookOpenText } from 'lucide-react';
+import { ArrowRight, BookOpenText, Search, Sparkles } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { LatestSubscriberEditions } from '@/components/home/latest-subscriber-editions';
@@ -265,30 +265,58 @@ export function HomeClient({
 
 
         {/* CTA Section */}
-        <section className="bg-gradient-to-b from-white to-flame-50 px-6 py-20 lg:px-8">
+        <section className="bg-gradient-to-b from-white to-flame-50/40 px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
           <motion.div
-            className="mx-auto max-w-5xl text-center"
+            className="relative mx-auto max-w-4xl overflow-hidden rounded-2xl border border-flame-100/80 bg-white/90 p-6 text-center shadow-sm sm:p-10"
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true }}
             variants={staggerContainer}
           >
-            <motion.h2
-              variants={fadeInUp}
-              className="font-heading text-3xl font-bold text-gray-900 sm:text-4xl"
-            >
-              Begin your exploration
-            </motion.h2>
-            <motion.p variants={fadeInUp} className="mt-4 text-lg text-gray-600">
-              Explore featured issues and the public archive. Other editions become freely readable five years after publication.
+            {/* Header: matching Image 3 style */}
+            <motion.div variants={fadeInUp} className="flex flex-col items-center justify-center gap-2">
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-gold-50 to-flame-50 text-flame-600 ring-1 ring-flame-100 shrink-0">
+                  <Sparkles className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <p className="text-xs font-semibold tracking-wider uppercase text-flame-700">
+                  Decades of Spiritual Heritage
+                </p>
+              </div>
+              <h2 className="font-heading text-xl font-bold tracking-tight text-gray-900 sm:text-2xl">
+                Step into Decades of Spiritual Light
+              </h2>
+            </motion.div>
+
+            {/* Subtitle */}
+            <motion.p variants={fadeInUp} className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-gray-600">
+              Immerse yourself in timeless writings and sacred guidance from Sri Aurobindo and The Mother on Integral Yoga, inner consciousness, and the Life Divine.
             </motion.p>
-            <motion.div variants={fadeInUp} className="mt-8">
+
+            {/* Dual CTA buttons */}
+            <motion.div variants={fadeInUp} className="mt-6 flex flex-wrap items-center justify-center gap-3">
               <Link
                 href="/browse"
-                className="inline-block rounded-xl bg-gradient-to-r from-gold-500 to-flame-500 px-10 py-4 text-base font-semibold text-white shadow-[0_12px_30px_rgba(190,140,46,0.22)] transition-all hover:from-gold-600 hover:to-flame-600 hover:shadow-[0_16px_36px_rgba(229,86,31,0.24)]"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-gold-500 to-flame-500 px-6 text-sm font-semibold text-white shadow-xs transition-all hover:from-gold-600 hover:to-flame-600"
               >
-                Explore the Archive
+                <span>Explore the Archive</span>
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
+              <Link
+                href="/search"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-flame-200/90 bg-white px-5 text-sm font-semibold text-flame-800 shadow-2xs transition-colors hover:border-flame-400 hover:bg-flame-50/50 hover:text-flame-900"
+              >
+                <Search className="h-4 w-4 text-flame-600 shrink-0" aria-hidden="true" />
+                <span>Search by Subject</span>
+              </Link>
+            </motion.div>
+
+            {/* Access Policy Note Pill */}
+            <motion.div variants={fadeInUp} className="mt-6 border-t border-flame-100/70 pt-4">
+              <p className="inline-flex items-center gap-1.5 text-xs text-gray-500">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500" aria-hidden="true" />
+                <span>Open Public Access &middot; Archival issues freely readable 5 years after publication</span>
+              </p>
             </motion.div>
           </motion.div>
         </section>

@@ -6,14 +6,26 @@ export const PUBLISHER_NAME = 'Sri Aurobindo Society';
 export const PRODUCTION_ORIGIN = 'https://aim.aurosociety.org';
 
 export function siteOrigin(): string {
+  const isVercel = Boolean(process.env.VERCEL);
   const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (!configured) return PRODUCTION_ORIGIN;
-  try {
-    const url = new URL(configured);
-    if (url.protocol === 'https:' || url.protocol === 'http:') return url.origin;
-  } catch {
-    // Invalid deployment configuration falls back to the approved origin.
+
+  // If configured, use it unless we are in Vercel and it points to localhost
+  if (configured) {
+    const isLocal = configured.includes('localhost') || configured.includes('127.0.0.1');
+    if (!isVercel || !isLocal) {
+      try {
+        const url = new URL(configured);
+        if (url.protocol === 'https:' || url.protocol === 'http:') return url.origin;
+      } catch {
+        // Invalid deployment configuration falls back to the approved origin.
+      }
+    }
   }
+
+  if (process.env.VERCEL_ENV === 'production') return PRODUCTION_ORIGIN;
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+
   return PRODUCTION_ORIGIN;
 }
 
@@ -32,7 +44,17 @@ export function robotsMetadata(index = true, follow = true): Metadata['robots'] 
   };
 }
 
-type SocialImage = string | { url: string; alt?: string; width?: number; height?: number };
+type SocialImage = string | { url: string; alt?: string; width?: number; height?: number; type?: string } | URL;
+
+const DEFAULT_SOCIAL_IMAGES: SocialImage[] = [
+  {
+    url: '/api/brand/social',
+    width: 1200,
+    height: 630,
+    type: 'image/png',
+    alt: SITE_NAME,
+  },
+];
 
 export function pageMetadata({
   title,
@@ -40,7 +62,7 @@ export function pageMetadata({
   path,
   index = true,
   follow = true,
-  images = ['/api/brand/social'],
+  images = DEFAULT_SOCIAL_IMAGES,
   openGraphType = 'website',
   canonical = true,
 }: {

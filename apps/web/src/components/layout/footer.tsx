@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { MessageSquareText } from 'lucide-react';
+import { ExternalLink, Globe, MessageSquareText } from 'lucide-react';
 import {
   defaultPublicNavigation,
   isExternalNavigationHref,
@@ -83,13 +83,31 @@ export function Footer({ navigation }: { navigation?: PublicNavigation }) {
           </div>
         </div>
 
-        <nav aria-label="About and administration" className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 sm:hidden">
-          {aboutLinks.map((item)=><FooterNavLink key={item.id} item={item} compact/>)}
-          <Link href="/admin" className="inline-flex min-h-11 items-center text-sm text-gray-600 hover:text-flame-700">Admin</Link>
-        </nav>
+        {/* Mobile quick actions: Society link & Feedback */}
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5 sm:hidden">
+          {aboutLinks.length > 0 && (
+            <nav aria-label="About" className="flex flex-wrap items-center justify-center gap-2">
+              {aboutLinks.map((item) => (
+                <FooterNavLink key={item.id} item={item} compact />
+              ))}
+            </nav>
+          )}
+
+          {feedbackFormUrl && (
+            <a
+              href={feedbackFormUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-gold-500 to-flame-500 px-4 py-2 text-xs font-semibold text-white shadow-xs transition-all hover:from-gold-600 hover:to-flame-600"
+            >
+              <MessageSquareText className="h-3.5 w-3.5 shrink-0" />
+              <span>Share feedback</span>
+            </a>
+          )}
+        </div>
 
         {feedbackFormUrl && (
-          <div className="mt-5 flex justify-center border-t border-flame-100 pt-5 sm:mt-10 sm:pt-8">
+          <div className="mt-5 hidden justify-center border-t border-flame-100 pt-5 sm:flex sm:mt-10 sm:pt-8">
             <a
               href={feedbackFormUrl}
               target="_blank"
@@ -97,30 +115,70 @@ export function Footer({ navigation }: { navigation?: PublicNavigation }) {
               className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-gold-500 to-flame-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_8px_22px_rgba(190,140,46,0.18)] transition-all hover:from-gold-600 hover:to-flame-600"
             >
               <MessageSquareText className="h-4 w-4" />
-              Share feedback
+              <span>Share feedback</span>
             </a>
           </div>
         )}
 
-        <div className={`${feedbackFormUrl ? 'mt-5 sm:mt-8' : 'mt-5 border-t border-flame-100 pt-5 sm:mt-12 sm:pt-8'} grid grid-cols-1 items-center gap-4 text-center sm:grid-cols-[1fr_auto_1fr]`}>
-          <p className="text-xs text-gray-500 sm:col-start-2 sm:text-sm">
+        <div className={`${feedbackFormUrl ? 'mt-5 sm:mt-8' : 'mt-5 border-t border-flame-100 pt-5 sm:mt-12 sm:pt-8'} text-center`}>
+          <p className="text-xs text-gray-500 sm:text-sm">
             &copy; {currentYear} Sri Aurobindo Society. All rights reserved.
           </p>
-          <Link href="/admin" className="hidden min-h-10 items-center justify-self-center rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-600 hover:border-flame-300 hover:text-flame-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame-600 sm:col-start-3 sm:row-start-1 sm:mr-16 sm:inline-flex sm:justify-self-end">
-            Admin
-          </Link>
         </div>
       </div>
     </footer>
   );
 }
 
-function FooterNavLink({ item,compact=false }: { item: NavigationItem;compact?:boolean }) {
-  const className = compact?'inline-flex min-h-11 items-center text-sm text-gray-600 hover:text-flame-700':'text-sm text-gray-500 hover:text-flame-700';
-  if (isExternalNavigationHref(item.href) || item.opens_new_tab) {
+function FooterNavLink({ item, compact = false }: { item: NavigationItem; compact?: boolean }) {
+  const isExternal = isExternalNavigationHref(item.href) || item.opens_new_tab;
+  const isSociety = isExternal || item.label.toLowerCase().includes('society') || item.href.includes('aurosociety.org');
+
+  if (compact) {
+    return (
+      <a
+        href={item.href}
+        target={isExternal ? '_blank' : undefined}
+        rel={isExternal ? 'noopener noreferrer' : undefined}
+        className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white/90 px-3.5 py-2 text-xs font-medium text-gray-700 shadow-2xs transition-colors hover:border-flame-300 hover:bg-flame-50/50 hover:text-flame-700"
+      >
+        {isSociety ? (
+          <Image
+            src="/favicons/aurosociety.png"
+            alt=""
+            width={16}
+            height={13}
+            className="h-3.5 w-3.5 shrink-0 object-contain"
+            unoptimized
+          />
+        ) : (
+          <Globe className="h-3.5 w-3.5 shrink-0 text-flame-600/80" aria-hidden="true" />
+        )}
+        <span>{item.label}</span>
+        {isExternal && <ExternalLink className="h-3 w-3 shrink-0 text-gray-400" aria-hidden="true" />}
+      </a>
+    );
+  }
+
+  const className = 'group inline-flex items-center gap-2 text-sm text-gray-500 transition-colors hover:text-flame-700';
+
+  if (isExternal) {
     return (
       <a href={item.href} target="_blank" rel="noopener noreferrer" className={className}>
-        {item.label}
+        {isSociety ? (
+          <Image
+            src="/favicons/aurosociety.png"
+            alt=""
+            width={16}
+            height={13}
+            className="h-3.5 w-3.5 shrink-0 object-contain"
+            unoptimized
+          />
+        ) : (
+          <Globe className="h-3.5 w-3.5 shrink-0 text-flame-600/80 transition-colors group-hover:text-flame-600" aria-hidden="true" />
+        )}
+        <span>{item.label}</span>
+        <ExternalLink className="h-3 w-3 shrink-0 text-gray-400 transition-colors group-hover:text-flame-600" aria-hidden="true" />
       </a>
     );
   }

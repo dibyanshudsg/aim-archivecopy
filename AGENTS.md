@@ -133,9 +133,19 @@ Never revert or overwrite unrelated dirty work. At the time this file was create
 
 ## Deployment Notes
 
-Vercel project is linked in `.vercel/project.json` as `aim-archive`.
+Society Production domain:
 
-Production URL in docs:
+```text
+https://aim.aurosociety.org
+```
+
+Society Vercel deployment:
+
+```text
+https://all-india-magazine.vercel.app
+```
+
+Legacy Vercel project (former deployment, to be decommissioned safely later):
 
 ```text
 https://aim-archive.vercel.app

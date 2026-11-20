@@ -17,8 +17,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ slot
         : slot === 'favicon' ? '/icon.png' : '/logo.png';
       return NextResponse.redirect(new URL(fallback, request.url), {
         headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
-          'Pragma': 'no-cache',
+          'Cache-Control': slot === 'social' ? 'public, max-age=86400, stale-while-revalidate=604800' : 'no-cache, no-store, must-revalidate, max-age=0',
+          ...(slot === 'social' ? {} : { 'Pragma': 'no-cache' }),
         },
       });
     }
@@ -41,13 +41,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ slot
         image = canvas.toBuffer('image/png');
       }
     }
+    const cacheControl = slot === 'social'
+      ? 'public, max-age=86400, stale-while-revalidate=604800'
+      : 'no-cache, no-store, must-revalidate, max-age=0';
+
     return new Response(Buffer.from(image), {
       headers: {
         'Content-Type': 'image/png',
         'Content-Length': String(image.length),
-        'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
-        'Pragma': 'no-cache',
-        'Expires': '0',
+        'Cache-Control': cacheControl,
+        ...(slot === 'social' ? {} : { 'Pragma': 'no-cache', 'Expires': '0' }),
         'X-Content-Type-Options': 'nosniff',
       },
     });
