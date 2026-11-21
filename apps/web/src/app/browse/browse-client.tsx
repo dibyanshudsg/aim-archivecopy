@@ -3,9 +3,8 @@ import { TtlCache } from '@/lib/ttl-cache';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
-  ArrowUp,
   BookOpen,
   CheckSquare,
   Filter,
@@ -138,6 +137,8 @@ function BrowseContent({
   const mobileToolbarRef = useRef<HTMLDivElement>(null);
   const searchBarOpen = useSearchDropdown((state) => state.isOpen);
   const currentCacheKey = useMemo(() => browseCacheKey(filters), [filters]);
+  const currentCacheKeyRef = useRef(currentCacheKey);
+  currentCacheKeyRef.current = currentCacheKey;
   const responseCacheRef = useRef(new TtlCache<BrowseCacheEntry>(CLIENT_BROWSE_CACHE_MS, 32));
   const inFlightRequestRef = useRef(new Map<string, { promise: Promise<BrowseCacheEntry>; controller: AbortController }>());
   const cacheSeededRef = useRef(false);
@@ -168,9 +169,7 @@ function BrowseContent({
   const [totalPages, setTotalPages] = useState(initialTotalPages);
   const [facets, setFacets] = useState(initialFacets);
   const [loading, setLoading] = useState(false);
-  const [showScrollTop, setShowScrollTop] = useState(false);
   const [controlsDocked, setControlsDocked] = useState(false);
-  const showScrollTopRef = useRef(false);
   const controlsDockedRef = useRef(false);
   const firstFetchRef = useRef(true);
   const detailTemplateWarmRef = useRef(false);
@@ -220,6 +219,9 @@ function BrowseContent({
           if (!signal?.aborted) {
             responseCacheRef.current.set(key, entry);
             void writePersistentBrowseEntry(key, entry);
+            if (currentCacheKeyRef.current === key) {
+              applyBrowseEntry(entry);
+            }
           }
           return entry;
       };
@@ -244,7 +246,7 @@ function BrowseContent({
       inFlightRequestRef.current.set(key, { promise: request, controller });
       return request;
     },
-    [initialFacets],
+    [applyBrowseEntry, initialFacets],
   );
 
   useEffect(() => {
@@ -344,12 +346,6 @@ function BrowseContent({
 
     const updateScrollUi = () => {
       frame = 0;
-      const nextVisible = window.scrollY > 520;
-      if (nextVisible !== showScrollTopRef.current) {
-        showScrollTopRef.current = nextVisible;
-        setShowScrollTop(nextVisible);
-      }
-
       const activeToolbar = window.matchMedia('(max-width: 767px)').matches ? mobileToolbarRef.current : toolbarRef.current;
       const toolbarBottom = activeToolbar?.getBoundingClientRect().bottom ?? Number.POSITIVE_INFINITY;
       const headerBottom =
@@ -558,10 +554,6 @@ function BrowseContent({
       const top = gridTopRef.current.getBoundingClientRect().top + window.scrollY - 80;
       window.scrollTo({ top, behavior: 'smooth' });
     }
-  }
-
-  function handleScrollToTop() {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   // Bulk selection / download state. Selection mode is reset whenever this
@@ -883,23 +875,6 @@ function BrowseContent({
         onCancel={cancelDownload}
         onClose={closeDownloadModal}
       />
-      <AnimatePresence>
-        {showScrollTop && (
-          <motion.button
-            type="button"
-            initial={{ opacity: 0, y: 18, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 18, scale: 0.96 }}
-            transition={{ type: 'spring', stiffness: 420, damping: 30, mass: 0.7 }}
-            onClick={handleScrollToTop}
-            aria-label="Scroll to top"
-            title="Scroll to top"
-            className="fixed right-4 sm:right-6 md:right-8 bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:bottom-6 md:bottom-8 z-40 flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-gradient-to-r from-gold-500 to-flame-500 text-white shadow-[0_12px_30px_rgba(190,140,46,0.28)] ring-1 ring-flame-600/20 transition-colors hover:from-gold-600 hover:to-flame-600 focus-visible:ring-2 focus-visible:ring-flame-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-          >
-            <ArrowUp className="h-5 w-5 sm:h-6 sm:w-6" />
-          </motion.button>
-        )}
-      </AnimatePresence>
       </main>
       <Footer navigation={navigation} />
     </div>

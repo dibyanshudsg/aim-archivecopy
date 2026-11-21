@@ -1,5 +1,5 @@
-const CACHE_NAME = 'aim-browse-data-v2';
-const LEGACY_CACHE_NAMES = ['aim-browse-data-v1'];
+const CACHE_NAME = 'aim-browse-data-v3';
+const LEGACY_CACHE_NAMES = ['aim-browse-data-v1', 'aim-browse-data-v2'];
 const CACHE_PATH = '/__aim-browser-cache/browse/';
 let legacyCleanupStarted = false;
 

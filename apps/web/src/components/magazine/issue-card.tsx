@@ -88,7 +88,7 @@ export function IssueCard({ issue, index = 0, source = 'browse' }: IssueCardProp
           href={readHref}
           prefetch={true}
           onClick={() => {
-            if (!issue.isEmbargoed) rememberReaderSource(issue.id, source);
+            rememberReaderSource(issue.id, source);
           }}
           tabIndex={-1}
           aria-hidden="true"
@@ -278,6 +278,7 @@ export function IssueCard({ issue, index = 0, source = 'browse' }: IssueCardProp
                 onPointerEnter={prepareDetails}
                 onPointerDown={prepareDetails}
                 onFocus={prepareDetails}
+                onClick={() => rememberReaderSource(issue.id, source)}
                 className="relative z-20 flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-flame-200 bg-flame-50/60 py-2 text-xs font-semibold text-flame-700 transition-colors hover:border-flame-300 hover:bg-flame-50"
               >
                 <Lock className="h-3.5 w-3.5" />

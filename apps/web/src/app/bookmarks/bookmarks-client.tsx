@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowUp, BookMarked, CheckSquare, Download, Filter, Trash2 } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { BookMarked, CheckSquare, Download, Filter, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
@@ -160,8 +160,6 @@ export function BookmarksClient({ navigation }: BookmarksClientProps) {
 
   const [controlsDocked, setControlsDocked] = useState(false);
   const controlsDockedRef = useRef(false);
-  const [showScrollTop, setShowScrollTop] = useState(false);
-  const showScrollTopRef = useRef(false);
 
   const gridTopRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -233,12 +231,6 @@ export function BookmarksClient({ navigation }: BookmarksClientProps) {
 
     const updateScrollUi = () => {
       frame = 0;
-      const nextVisible = window.scrollY > 520;
-      if (nextVisible !== showScrollTopRef.current) {
-        showScrollTopRef.current = nextVisible;
-        setShowScrollTop(nextVisible);
-      }
-
       const activeToolbar = window.matchMedia('(max-width: 767px)').matches ? mobileToolbarRef.current : toolbarRef.current;
       const toolbarBottom = activeToolbar?.getBoundingClientRect().bottom ?? Number.POSITIVE_INFINITY;
       const headerBottom =
@@ -419,10 +411,6 @@ export function BookmarksClient({ navigation }: BookmarksClientProps) {
       const top = gridTopRef.current.getBoundingClientRect().top + window.scrollY - 80;
       window.scrollTo({ top, behavior: 'smooth' });
     }
-  }
-
-  function handleScrollToTop() {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   // Bulk selection / download state
@@ -869,24 +857,6 @@ export function BookmarksClient({ navigation }: BookmarksClientProps) {
             )}
           </div>
         </div>
-
-        <AnimatePresence>
-          {showScrollTop && (
-            <motion.button
-              type="button"
-              initial={{ opacity: 0, y: 18, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 18, scale: 0.96 }}
-              transition={{ type: 'spring', stiffness: 420, damping: 30, mass: 0.7 }}
-              onClick={handleScrollToTop}
-              aria-label="Scroll to top"
-              title="Scroll to top"
-              className="fixed right-4 sm:right-6 md:right-8 bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:bottom-6 md:bottom-8 z-40 flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-gradient-to-r from-gold-500 to-flame-500 text-white shadow-[0_12px_30px_rgba(190,140,46,0.28)] ring-1 ring-flame-600/20 transition-colors hover:from-gold-600 hover:to-flame-600 focus-visible:ring-2 focus-visible:ring-flame-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-            >
-              <ArrowUp className="h-5 w-5 sm:h-6 sm:w-6" />
-            </motion.button>
-          )}
-        </AnimatePresence>
       </main>
       <Footer navigation={navigation} />
 

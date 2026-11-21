@@ -3,8 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Search as SearchIcon, X, ChevronDown, ArrowUp } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Search as SearchIcon, X, ChevronDown } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { SearchResultItem } from '@/components/search/search-result-item';
@@ -55,7 +54,6 @@ export function SearchClient({ navigation, initialMagazines }: SearchClientProps
   const [topicScope, setTopicScope] = useState<'selection' | 'all'>('selection');
   const [expandedTopics, setExpandedTopics] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [showScrollTop, setShowScrollTop] = useState(false);
 
   const isMountedRef = useRef(false);
   const resultsTopRef = useRef<HTMLDivElement>(null);
@@ -65,15 +63,6 @@ export function SearchClient({ navigation, initialMagazines }: SearchClientProps
     return () => {
       isMountedRef.current = false;
     };
-  }, []);
-
-  // Scroll-to-top visibility listener
-  useEffect(() => {
-    const handleScroll = () => {
-      setShowScrollTop(window.scrollY > 520);
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   // Sync state to browser URL without full page unmounts
@@ -717,25 +706,6 @@ export function SearchClient({ navigation, initialMagazines }: SearchClientProps
             </div>
           ) : null}
         </div>
-
-        {/* Scroll-to-top floating button */}
-        <AnimatePresence>
-          {showScrollTop && (
-            <motion.button
-              type="button"
-              initial={{ opacity: 0, y: 18, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 18, scale: 0.96 }}
-              transition={{ type: 'spring', stiffness: 420, damping: 30, mass: 0.7 }}
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              aria-label="Scroll to top"
-              title="Scroll to top"
-              className="fixed right-4 sm:right-6 md:right-8 bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:bottom-6 md:bottom-8 z-40 flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-gradient-to-r from-gold-500 to-flame-500 text-white shadow-[0_12px_30px_rgba(190,140,46,0.28)] ring-1 ring-flame-600/20 transition-colors hover:from-gold-600 hover:to-flame-600 focus-visible:ring-2 focus-visible:ring-flame-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-            >
-              <ArrowUp className="h-5 w-5 sm:h-6 sm:w-6" />
-            </motion.button>
-          )}
-        </AnimatePresence>
       </main>
       <Footer navigation={navigation} />
     </div>

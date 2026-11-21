@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Image from '@/components/magazine/archive-image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   BookOpen,
@@ -23,6 +24,7 @@ import { useBookmarks } from '@/lib/bookmarks-store';
 import { AccessNotice } from '@/components/magazine/access-notice';
 import type { PublicNavigation } from '@/lib/navigation';
 import { configurePdfWorker } from '@/lib/pdf-worker-client';
+import { getBrowseReturnHref } from '@/lib/reader-url';
 
 interface IssueDetailClientProps {
   initialIssue: ApiIssue;
@@ -42,12 +44,30 @@ function scheduleIdleWork(callback: () => void, timeout = 1_500): () => void {
 }
 
 export function IssueDetailClient({ initialIssue, navigation, relatedSection }: IssueDetailClientProps) {
+  const router = useRouter();
   const { toggle, isBookmarked } = useBookmarks();
   const [apiIssue, setApiIssue] = useState(initialIssue);
   const [unlockRefreshing, setUnlockRefreshing] = useState(false);
   const issue = normalizeIssue(apiIssue);
   const [derivedPageCount, setDerivedPageCount] = useState<number | null>(issue.pageCount ?? null);
   const [pageCountLookupFailed, setPageCountLookupFailed] = useState(false);
+  const [returnHref, setReturnHref] = useState<string>('/browse');
+
+  useEffect(() => {
+    const savedHref = getBrowseReturnHref(issue.id);
+    if (savedHref) setReturnHref(savedHref);
+  }, [issue.id]);
+
+  const handleBack = (e: React.MouseEvent) => {
+    if (
+      typeof window !== 'undefined' &&
+      ((window.history.state && typeof window.history.state.idx === 'number' && window.history.state.idx > 0) ||
+        (document.referrer && document.referrer.startsWith(window.location.origin)))
+    ) {
+      e.preventDefault();
+      router.back();
+    }
+  };
 
   useEffect(() => {
     setApiIssue(initialIssue);
@@ -168,7 +188,8 @@ export function IssueDetailClient({ initialIssue, navigation, relatedSection }: 
         <div className="border-b border-gray-100 bg-white/70 px-4 py-2 sm:px-6 lg:px-8">
           <div className="mx-auto flex w-full max-w-[1440px] items-center gap-2.5 text-sm">
             <Link
-              href="/browse"
+              href={returnHref}
+              onClick={handleBack}
               prefetch={true}
               className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-flame-50 hover:text-flame-700"
               aria-label="Back to browse"

@@ -165,10 +165,10 @@ function DesktopRow({ issue, index }: { issue: IssueWithMagazine; index: number 
         }
         // Embargoed issues route to the detail page (where the embargo
         // messaging lives) — opening the reader would just paint a broken PDF.
+        rememberReaderSource(issue.id, 'browse');
         if (issue.isEmbargoed) {
           router.push(detailHref);
         } else {
-          rememberReaderSource(issue.id, 'browse');
           router.push(readerPath(issue.id));
         }
       }}
@@ -331,7 +331,7 @@ function MobileRow({ issue, index }: { issue: IssueWithMagazine; index: number }
         <Link
           href={issue.isEmbargoed ? detailHref : readerPath(issue.id)}
           onClick={() => {
-            if (!issue.isEmbargoed) rememberReaderSource(issue.id, 'browse');
+            rememberReaderSource(issue.id, 'browse');
           }}
           className="absolute inset-0 z-0"
           aria-label={issue.isEmbargoed ? `View ${issue.title}` : `Read ${issue.title}`}

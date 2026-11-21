@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpenText, X, Trash2 } from 'lucide-react';
+import { BookOpenText, X, Trash2, ArrowUp } from 'lucide-react';
 import { formatMonthYear } from '@/lib/utils';
 import { isEmbargoed } from '@/lib/embargo';
 import { readerPath, rememberDirectResume, rememberReaderSource } from '@/lib/reader-url';
@@ -22,8 +22,32 @@ export function ContinueReadingFab({ inline = false }: { inline?: boolean }) {
 
   const [open, setOpen] = useState(false);
   const [entries, setEntries] = useState<ReadingHistoryEntry[]>([]);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const showScrollTopRef = useRef(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const fabRef = useRef<HTMLButtonElement | null>(null);
+
+  // Monitor window scroll to show/hide the scroll-to-top button
+  useEffect(() => {
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        const nextVisible = window.scrollY > 480;
+        if (nextVisible !== showScrollTopRef.current) {
+          showScrollTopRef.current = nextVisible;
+          setShowScrollTop(nextVisible);
+        }
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', onScroll);
+    };
+  }, []);
 
   // Refresh the list whenever the panel opens (and once on mount, so the
   // badge counter is correct from the start). Drop locally-cached entries
@@ -72,7 +96,7 @@ export function ContinueReadingFab({ inline = false }: { inline?: boolean }) {
   if (pathname?.startsWith('/admin')) return null;
 
   const count = entries.length;
-  if (count === 0) return null;
+  if (count === 0 && !showScrollTop) return null;
 
   function openIssue(entry: ReadingHistoryEntry) {
     setOpen(false);
@@ -87,51 +111,71 @@ export function ContinueReadingFab({ inline = false }: { inline?: boolean }) {
     setEntries((prev) => prev.filter((x) => x.issueId !== issueId));
   }
 
+  function handleScrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  const slideOffset = !inline && showScrollTop ? -70 : 0;
+
   return (
     <>
-      {/* FAB */}
-      <motion.button
-        ref={fabRef}
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        whileHover={{ scale: 1.06 }}
-        whileTap={{ scale: 0.94 }}
-        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-        aria-label="Continue reading"
-        aria-expanded={open}
-        title="Continue reading"
-        className={inline
-          ? 'relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-flame-200 bg-white text-flame-700 shadow-sm hover:border-flame-300 hover:bg-flame-50 focus-visible:ring-2 focus-visible:ring-flame-500 md:hidden'
-          : `fixed right-4 sm:right-6 md:right-8 z-40 flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-gradient-to-r from-gold-500 to-flame-500 text-white shadow-lg ring-1 ring-flame-600/20 focus-visible:ring-2 focus-visible:ring-flame-700 ${
-              pathname === '/browse'
-                ? 'bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] sm:bottom-24'
-                : 'bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:bottom-6 md:bottom-8'
-            }`}
-      >
-        <BookOpenText className="h-6 w-6" />
-        {count > 0 && (
+      {/* Scroll to top floating button */}
+      <AnimatePresence>
+        {showScrollTop && !inline && (
+          <motion.button
+            type="button"
+            onClick={handleScrollToTop}
+            initial={{ opacity: 0, y: 18, scale: 0.94 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 18, scale: 0.94 }}
+            whileHover={{ scale: 1.06 }}
+            whileTap={{ scale: 0.94 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 30, mass: 0.7 }}
+            aria-label="Scroll to top"
+            title="Scroll to top"
+            className="fixed right-4 sm:right-6 md:right-8 bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:bottom-6 md:bottom-8 z-40 flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-gradient-to-r from-gold-500 to-flame-500 text-white shadow-[0_12px_30px_rgba(190,140,46,0.28)] ring-1 ring-flame-600/20 transition-colors hover:from-gold-600 hover:to-flame-600 focus-visible:ring-2 focus-visible:ring-flame-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+          >
+            <ArrowUp className="h-5 w-5 sm:h-6 sm:w-6" />
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Continue Reading FAB */}
+      {count > 0 && (
+        <motion.button
+          ref={fabRef}
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          animate={{ y: slideOffset }}
+          whileHover={{ scale: 1.06 }}
+          whileTap={{ scale: 0.94 }}
+          transition={{ type: 'spring', stiffness: 420, damping: 30, mass: 0.7 }}
+          aria-label="Continue reading"
+          aria-expanded={open}
+          title="Continue reading"
+          className={inline
+            ? 'relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-flame-200 bg-white text-flame-700 shadow-sm hover:border-flame-300 hover:bg-flame-50 focus-visible:ring-2 focus-visible:ring-flame-500 md:hidden'
+            : 'fixed right-4 sm:right-6 md:right-8 bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:bottom-6 md:bottom-8 z-40 flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-gradient-to-r from-gold-500 to-flame-500 text-white shadow-lg ring-1 ring-flame-600/20 focus-visible:ring-2 focus-visible:ring-flame-700'}
+        >
+          <BookOpenText className="h-6 w-6" />
           <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-flame-600 px-1 text-[11px] font-bold text-white shadow ring-2 ring-white">
             {count}
           </span>
-        )}
-      </motion.button>
+        </motion.button>
+      )}
 
       {/* Panel */}
       <AnimatePresence>
-        {open && (
+        {open && count > 0 && (
           <motion.div
             ref={panelRef}
-            initial={{ opacity: 0, y: 16, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 16, scale: 0.96 }}
+            initial={{ opacity: 0, y: slideOffset + 16, scale: 0.96 }}
+            animate={{ opacity: 1, y: slideOffset, scale: 1 }}
+            exit={{ opacity: 0, y: slideOffset + 16, scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 400, damping: 32 }}
             className={inline
               ? 'absolute top-full right-2 z-50 flex w-[min(380px,calc(100vw-1rem))] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl md:hidden'
-              : `fixed right-4 sm:right-6 md:right-8 z-50 flex w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl ${
-                  pathname === '/browse'
-                    ? 'bottom-[calc(8.5rem+env(safe-area-inset-bottom,0px))] sm:bottom-40'
-                    : 'bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] sm:bottom-24'
-                }`}
+              : 'fixed right-4 sm:right-6 md:right-8 bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] sm:bottom-24 z-50 flex w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl'}
           >
             <header className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
               <div>
