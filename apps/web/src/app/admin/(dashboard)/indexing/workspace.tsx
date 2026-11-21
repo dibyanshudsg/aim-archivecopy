@@ -3,7 +3,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from '@/components/magazine/archive-image';
 import Link from 'next/link';
-import { RefreshCw, Search, X, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
+import {
+  RefreshCw,
+  Search,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  BookOpen,
+  Sparkles,
+  Clock,
+  FileCheck2,
+  AlertTriangle,
+  AlertCircle,
+  CheckCircle2,
+  HelpCircle,
+  Play,
+  RotateCcw,
+  Loader2,
+} from 'lucide-react';
 import { useUI } from '@/components/ui/toast';
 import { PageReviewEditor } from './page-review-editor';
 import { AdminPageTitle } from '../admin-page-title';
@@ -36,12 +53,14 @@ const dates = (date: string | null) =>
     : 'Not recorded';
 const stateClass = (status: string) =>
   status === 'failed'
-    ? 'text-red-700 bg-red-50'
+    ? 'text-red-700 bg-red-50 border border-red-200'
     : status === 'review' || status === 'unverified' || status === 'unavailable'
-      ? 'text-amber-900 bg-amber-50'
+      ? 'text-amber-900 bg-amber-50 border border-amber-200'
       : status === 'indexed' || status === 'complete'
-        ? 'text-green-800 bg-green-50'
-        : 'text-gray-700 bg-gray-100';
+        ? 'text-emerald-800 bg-emerald-50 border border-emerald-200'
+        : status === 'processing'
+          ? 'text-blue-800 bg-blue-50 border border-blue-200'
+          : 'text-gray-700 bg-gray-100 border border-gray-200';
 function Status({ status }: { status: string }) {
   return (
     <span className={`inline-block rounded-md px-2 py-1 text-xs font-medium ${stateClass(status)}`}>
@@ -280,12 +299,52 @@ export function IndexingWorkspace({ initial }: { initial: IndexingCatalogue }) {
     (n, s) => n + (data.counts[s] || 0),
     0,
   );
-  const tiles = [
-    ['all', 'Eligible English issues', data.eligible],
-    ['missing', 'Need indexing', data.counts.missing || 0],
-    ['active', 'Queued / Processing', active],
-    ['failed', 'Failed', data.counts.failed || 0],
-    ['review', 'Indexed · text needs review', data.counts.review || 0],
+  const tileCards = [
+    {
+      key: 'all',
+      status: 'eligible',
+      label: 'Eligible English',
+      count: data.eligible,
+      icon: BookOpen,
+      desc: 'Total issues in scope',
+      color: 'text-gray-900',
+    },
+    {
+      key: 'missing',
+      status: 'missing',
+      label: 'Needs Indexing',
+      count: data.counts.missing || 0,
+      icon: Sparkles,
+      desc: 'Not yet queued',
+      color: (data.counts.missing || 0) > 0 ? 'text-amber-800' : 'text-gray-700',
+    },
+    {
+      key: 'active',
+      status: 'active',
+      label: 'Queued / Processing',
+      count: active,
+      icon: Clock,
+      desc: 'Waiting for worker run',
+      color: active > 0 ? 'text-flame-700' : 'text-gray-700',
+    },
+    {
+      key: 'review',
+      status: 'review',
+      label: 'Needs Page Review',
+      count: data.counts.review || 0,
+      icon: FileCheck2,
+      desc: 'Cover & artwork checks',
+      color: (data.counts.review || 0) > 0 ? 'text-gold-700' : 'text-gray-700',
+    },
+    {
+      key: 'failed',
+      status: 'failed',
+      label: 'Failed Issues',
+      count: data.counts.failed || 0,
+      icon: AlertTriangle,
+      desc: 'Requires retry',
+      color: (data.counts.failed || 0) > 0 ? 'text-red-700' : 'text-gray-700',
+    },
   ] as const;
   const canSelect = (i: CoverageIssue) =>
     !['excluded', 'unavailable', 'queued', 'processing'].includes(i.status);
@@ -293,67 +352,134 @@ export function IndexingWorkspace({ initial }: { initial: IndexingCatalogue }) {
   const allSelected = selectable.length > 0 && selectable.every((i) => selected.has(i.id));
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <AdminPageTitle title="Search Indexing" description="See what is searchable, find missing editions, and follow every indexing run." />
-        <div className="flex flex-wrap gap-2">
+      {/* Top Header & Actions */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <AdminPageTitle
+          title="Search Indexing"
+          description="Manage full-text search extraction and review OCR text across the English catalogue."
+        />
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
-            className={action}
-            disabled={busy || !data.counts.failed}
-            onClick={() => void queue('retry')}
+            className={`${action} inline-flex items-center gap-1.5`}
+            disabled={loading}
+            onClick={refresh}
+            title="Refresh status and queue"
           >
-            Retry failed
+            <RefreshCw className={`h-4 w-4 text-gray-500 ${loading ? 'animate-spin text-flame-600' : ''}`} />
+            <span>{loading ? 'Refreshing…' : 'Refresh'}</span>
           </button>
+          {!!data.counts.failed && (
+            <button
+              className={`${action} inline-flex items-center gap-1.5 border-red-200 text-red-700 hover:bg-red-50`}
+              disabled={busy}
+              onClick={() => void queue('retry')}
+            >
+              <RotateCcw className="h-4 w-4" />
+              <span>Retry failed ({data.counts.failed})</span>
+            </button>
+          )}
           <button
-            className={primary}
+            className={`${primary} inline-flex items-center gap-2 shadow-xs`}
             disabled={
               busy || loading || !!error || !dispatch?.configured || dispatch.active || !pending
             }
             onClick={() => void start()}
           >
-            {busy
-              ? 'Please wait…'
-              : dispatch?.active
-                ? 'Indexing run active'
-                : `Start indexing (${pending})`}
+            {busy ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Please wait…</span>
+              </>
+            ) : dispatch?.active ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Worker running…</span>
+              </>
+            ) : (
+              <>
+                <Play className="h-4 w-4 fill-current" />
+                <span>Start indexing {pending ? `(${pending})` : ''}</span>
+              </>
+            )}
           </button>
         </div>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-        <div className="min-w-0">
-          <p className="text-gray-900">
-            Manual indexing — runs only when started
-            {data.workerOnline && <span className="ml-2 text-green-800">Worker connected</span>}
-          </p>
-          {data.schedule && (
-            <p className="mt-1 text-gray-600">
-              Last manual check {dates(new Date(data.schedule.lastCheckedAt).toISOString())} IST.
-              {['failure', 'cancelled'].includes(data.schedule.lastResult) &&
-                ' The last run did not finish successfully.'}{' '}
+
+      {/* System Status & Connection Card */}
+      <div className="rounded-2xl border border-flame-100/90 bg-gradient-to-r from-warm-white via-white to-flame-50/30 p-5 shadow-xs">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              {dispatch?.active ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800 border border-blue-200">
+                  <span className="h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
+                  Indexing in progress
+                </span>
+              ) : dispatch?.configured ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 border border-emerald-200">
+                  <span className="h-2 w-2 rounded-full bg-emerald-600" />
+                  Worker ready (On-demand)
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900 border border-amber-200">
+                  <AlertCircle className="h-3.5 w-3.5 text-amber-700" />
+                  Token required for 1-click start
+                </span>
+              )}
+
+              {data.schedule?.lastCheckedAt && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 border border-gray-200/80">
+                  <Clock className="h-3.5 w-3.5 text-gray-500" />
+                  Last check: {dates(new Date(data.schedule.lastCheckedAt).toISOString())} IST
+                </span>
+              )}
+
+              {pending > 0 ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-flame-50 px-3 py-1 text-xs font-semibold text-flame-800 border border-flame-200">
+                  <Sparkles className="h-3.5 w-3.5 text-flame-600" />
+                  {pending} issues ready to index
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600 border border-gray-200">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                  Catalogue index current
+                </span>
+              )}
+            </div>
+
+            <p className="text-sm text-gray-600 leading-relaxed max-w-3xl">
+              {!dispatch?.configured ? (
+                <>
+                  To start worker runs directly from this dashboard with 1 click, add{' '}
+                  <code className="rounded bg-amber-100/80 px-1.5 py-0.5 font-mono text-xs text-amber-900 font-semibold">
+                    INDEXING_GITHUB_TOKEN
+                  </code>{' '}
+                  to your Vercel Environment Variables. You can also trigger runs directly in GitHub Actions.
+                </>
+              ) : dispatch?.active ? (
+                'The background worker is currently extracting text and running OCR. Page progress will appear below automatically.'
+              ) : pending > 0 ? (
+                `There are ${pending} eligible English issue(s) waiting in the queue. Each on-demand run processes up to 3 issues.`
+              ) : (
+                'All eligible English issues are indexed. Use the filters below to inspect text or review flagged cover pages.'
+              )}
             </p>
-          )}
-          <p className="mt-1 max-w-2xl text-gray-600" role="status">
-            {dispatch?.message || 'Checking the worker connection…'}
-          </p>
+          </div>
+
           {dispatch?.status === 'unknown' && (
-            <button
-              className={action + ' mt-2'}
-              disabled={busy}
-              onClick={() => void releaseStart()}
-            >
-              Release unconfirmed request
-            </button>
+            <div className="shrink-0">
+              <button
+                className={`${action} border-amber-300 text-amber-900 hover:bg-amber-50`}
+                disabled={busy}
+                onClick={() => void releaseStart()}
+              >
+                Release unconfirmed request
+              </button>
+            </div>
           )}
-          <p className="mt-1 text-gray-600">
-            {pending
-              ? `${pending} issues waiting to be indexed. Each run handles up to 3 issues.`
-              : 'No new indexing work. Page reviews and failed issues are handled separately.'}
-          </p>
         </div>
-        <button className={action} disabled={loading} onClick={refresh}>
-          <RefreshCw className="mr-2 inline h-4 w-4" />
-          Refresh
-        </button>
       </div>
+
       {error && (
         <p
           role="alert"
@@ -362,46 +488,101 @@ export function IndexingWorkspace({ initial }: { initial: IndexingCatalogue }) {
           {error} Previously loaded data may be out of date.
         </p>
       )}
-      <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-gray-200 bg-white sm:grid-cols-3 xl:grid-cols-5">
-        {tiles.map(([status, label, count]) => (
-          <button
-            key={status}
-            onClick={() => filter('status', status === 'all' ? 'eligible' : status)}
-            className={`min-h-24 border-b border-gray-200 px-4 py-4 text-left transition-colors hover:bg-flame-50 focus-visible:outline-2 focus-visible:outline-flame-600 ${filters.status === status || (status === 'all' && filters.status === 'eligible') ? 'bg-flame-50' : ''}`}
-          >
-            <span className="block text-sm text-gray-600">{label}</span>
-            <span className="mt-1 block text-2xl font-semibold tabular-nums text-gray-900">
-              {count}
-            </span>
-          </button>
-        ))}
+
+      {/* Modern KPI Cards */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        {tileCards.map((tile) => {
+          const isSelected =
+            filters.status === tile.key ||
+            (tile.key === 'all' && filters.status === 'eligible');
+          const Icon = tile.icon;
+          return (
+            <button
+              key={tile.key}
+              type="button"
+              onClick={() => filter('status', tile.key === 'all' ? 'eligible' : tile.key)}
+              className={`group relative flex flex-col justify-between rounded-xl border p-4 text-left transition-all ${
+                isSelected
+                  ? 'border-flame-500 bg-flame-50/70 shadow-xs ring-2 ring-flame-400/50'
+                  : 'border-gray-200 bg-white hover:border-flame-300 hover:bg-warm-white'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  {tile.label}
+                </span>
+                <span
+                  className={`rounded-lg p-1.5 transition-colors ${
+                    isSelected
+                      ? 'bg-flame-100 text-flame-700'
+                      : 'bg-gray-50 text-gray-500 group-hover:bg-flame-50 group-hover:text-flame-600'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                </span>
+              </div>
+              <div className="mt-3">
+                <span className={`block font-heading text-3xl font-bold tabular-nums ${tile.color}`}>
+                  {tile.count}
+                </span>
+                <span className="mt-0.5 block text-xs text-gray-500">
+                  {tile.desc}
+                </span>
+              </div>
+            </button>
+          );
+        })}
       </div>
-      <details className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600">
-        <summary className="cursor-pointer font-medium text-gray-900">How indexing works</summary>
-        <div className="mt-3 max-w-3xl space-y-2 leading-relaxed">
-          <p>
-            English uploads and PDF replacements queue automatically. Use Start indexing here to
-            process queued and missing issues. Completed indexes are skipped. Metadata edits do not
-            rebuild the PDF text.
-          </p>
-          <p>
-            Queued → Downloading PDF → Extracting text / OCR → Saving index → Complete. Completed
-            pages are saved. Each run handles up to three issues and stops starting new issues after
-            20 minutes. If work remains, start another run. Failed work gets up to three attempts
-            across runs before a manual retry is needed.
-          </p>
-          <p>
-            Blank pages and uncertain pages are tracked separately. Open an issue’s details to
-            inspect uncertain pages, add verified text, or record an intentional exclusion. Reviews
-            do not start a full rebuild. An existing index without enough evidence is marked
-            “verification needed”. Public search may take a cache refresh to show a completed
-            change.
-          </p>
-          <p>
-            Hindi and other languages remain outside the current indexing scope. Earlier verified
-            rebuilds appear in coverage and history, clearly labelled as reconciled records.
-          </p>
+
+      {/* Human-Friendly 3-Step Guide */}
+      <details className="group rounded-2xl border border-flame-100 bg-white/80 p-4 text-sm shadow-xs transition-colors hover:bg-white">
+        <summary className="flex cursor-pointer items-center justify-between font-semibold text-gray-900 select-none">
+          <div className="flex items-center gap-2">
+            <HelpCircle className="h-4 w-4 text-flame-600" />
+            <span>How Search Indexing Works</span>
+          </div>
+          <span className="text-xs font-medium text-gray-500 group-open:text-flame-700">
+            Click to view workflow guide
+          </span>
+        </summary>
+        <div className="mt-4 grid gap-3.5 pt-3.5 border-t border-gray-100 md:grid-cols-3">
+          <div className="rounded-xl border border-gray-100 bg-warm-white/70 p-4">
+            <div className="flex items-center gap-2.5 font-semibold text-gray-900">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-flame-100 text-xs font-bold text-flame-800">
+                1
+              </span>
+              <span>Automatic Queue</span>
+            </div>
+            <p className="mt-2 text-xs text-gray-600 leading-relaxed">
+              When a new English magazine PDF is uploaded or replaced, it is automatically detected and placed in the indexing queue.
+            </p>
+          </div>
+          <div className="rounded-xl border border-gray-100 bg-warm-white/70 p-4">
+            <div className="flex items-center gap-2.5 font-semibold text-gray-900">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-flame-100 text-xs font-bold text-flame-800">
+                2
+              </span>
+              <span>On-Demand Extraction</span>
+            </div>
+            <p className="mt-2 text-xs text-gray-600 leading-relaxed">
+              Clicking <strong>Start indexing</strong> triggers the background worker to parse PDF pages and perform OCR in batches of up to 3 issues per run.
+            </p>
+          </div>
+          <div className="rounded-xl border border-gray-100 bg-warm-white/70 p-4">
+            <div className="flex items-center gap-2.5 font-semibold text-gray-900">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-flame-100 text-xs font-bold text-flame-800">
+                3
+              </span>
+              <span>Quality Page Review</span>
+            </div>
+            <p className="mt-2 text-xs text-gray-600 leading-relaxed">
+              Pages flagged with uncertain text (e.g. illustrated cover artwork) can be reviewed and approved in seconds using <strong>Review pages</strong>.
+            </p>
+          </div>
         </div>
+        <p className="mt-3.5 text-xs text-gray-500 italic">
+          * Full-text search extraction is tailored for English editions. Hindi editions are searchable by issue title, theme, and topic metadata.
+        </p>
       </details>
       <div
         className="flex gap-5 border-b border-gray-200"
@@ -622,13 +803,19 @@ export function IndexingWorkspace({ initial }: { initial: IndexingCatalogue }) {
                           {issue.indexed_pages} / {issue.total_pages ?? 'unknown'} pages searchable
                         </p>
                         {issue.status === 'processing' && (
-                          <p className="mt-1 text-xs text-gray-700">
-                            {issue.completed_pages} pages processed
+                          <p className="mt-1 text-xs font-medium text-blue-700">
+                            {issue.completed_pages} pages processed…
                           </p>
                         )}
-                        {issue.verified && (
-                          <p className="mt-1 text-xs text-gray-600">
-                            {issue.blank_pages.length} blank · {issue.review_pages.length} withheld
+                        {issue.review_pages.length > 0 && (
+                          <span className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800 border border-amber-200">
+                            <AlertCircle className="h-3 w-3 text-amber-600" />
+                            {issue.review_pages.length} page(s) need review
+                          </span>
+                        )}
+                        {issue.verified && !issue.review_pages.length && issue.blank_pages.length > 0 && (
+                          <p className="mt-1 text-xs text-gray-500">
+                            {issue.blank_pages.length} blank page(s)
                           </p>
                         )}
                       </td>
@@ -636,9 +823,21 @@ export function IndexingWorkspace({ initial }: { initial: IndexingCatalogue }) {
                         {dates(issue.indexed_at)}
                       </td>
                       <td className="hidden py-4 pr-4 align-top sm:table-cell">
-                        <button className={action} onClick={() => setDetail(issue.id)}>
-                          {issue.status === 'review' ? 'Review pages' : 'View details'}
-                        </button>
+                        {issue.status === 'review' ? (
+                          <button
+                            className="min-h-9 inline-flex items-center justify-center rounded-lg bg-flame-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-flame-700 focus-visible:outline-2 focus-visible:outline-flame-600 transition-colors"
+                            onClick={() => setDetail(issue.id)}
+                          >
+                            Review pages
+                          </button>
+                        ) : (
+                          <button
+                            className={`${action} text-xs py-1.5`}
+                            onClick={() => setDetail(issue.id)}
+                          >
+                            View details
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
