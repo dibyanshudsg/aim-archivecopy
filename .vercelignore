@@ -4,7 +4,6 @@
 .ocr-cache/
 **/__pycache__/
 **/*.pyc
-.git/
 .github/
 .pnpm-store/
 .turbo/
